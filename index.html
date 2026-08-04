@@ -78,7 +78,7 @@
   </div>
 
   <div class="scene hidden" id="scene-home">
-    <video class="art" muted loop playsinline id="homeVideo">
+    <video class="art" autoplay muted loop playsinline preload="auto" id="homeVideo">
       <source src="assets/home-bg.mp4" type="video/mp4">
     </video>
     <div class="scrim"></div>
@@ -107,7 +107,6 @@
     started = true;
     bgm.currentTime = 0;
     bgm.play().catch(()=>{});
-    homeVideo.play().catch(()=>{});
 
     sceneTitle.classList.add('hidden');
     sceneTitle.addEventListener('transitionend', function onEnd(e){
