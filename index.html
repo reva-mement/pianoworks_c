@@ -6,7 +6,7 @@
 <title>PianoWorks Crescendo — 画面遷移プレビュー</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital@1&family=Zen+Old+Mincho&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital@1&family=Zen+Old+Mincho&family=Yomogi&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden;}
   .stage{
@@ -62,7 +62,31 @@
   /* ---- home scene ---- */
   .home-wordmark{position:absolute;top:8%;left:0;right:0;text-align:center;font-family:'Cormorant Garamond', serif;font-style:italic;font-size:20px;color:#efe4cf;opacity:.85;}
   .home-menu{position:absolute;left:0;right:0;top:50%;transform:translateY(-46%);display:flex;flex-direction:column;align-items:center;gap:22px;}
-  .home-item{font-family:'Zen Old Mincho', serif;font-size:18px;letter-spacing:8px;color:#f3e9d2;opacity:.9;}
+
+  @keyframes ripple{
+    0%{transform:translate(-50%,-50%) scale(0.05); opacity:0.55;}
+    100%{transform:translate(-50%,-50%) scale(1); opacity:0;}
+  }
+  .ripplefx{
+    position:absolute; border-radius:50%;
+    background:radial-gradient(circle, rgba(200,240,240,0.55) 0%, rgba(150,220,220,0.25) 45%, rgba(150,220,220,0) 72%);
+    filter:url(#ripple);
+    pointer-events:none;
+    animation:ripple 1.2s ease-out forwards;
+  }
+  .aqbtn{
+    position:relative; width:240px; height:74px; cursor:pointer; overflow:hidden; border-radius:4px;
+    border:2px solid #c9a869;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -8px 16px rgba(0,0,0,0.35), 0 3px 0 rgba(0,0,0,0.5);
+    background:linear-gradient(180deg, #23484b 0%, #0d2326 100%);
+    transition:transform 0.09s ease-out, box-shadow 0.09s ease-out;
+  }
+  .aqbtn.pressed{
+    transform:translateY(2px) scale(0.985);
+    box-shadow:inset 0 3px 8px rgba(0,0,0,0.55), inset 0 -4px 10px rgba(0,0,0,0.3), 0 1px 0 rgba(0,0,0,0.5);
+  }
+  .aqbtn .caustic-layer{position:absolute; inset:0; opacity:.35; mix-blend-mode:screen; filter:url(#caustic);}
+  .aqbtn .label{font-family:'Yomogi', cursive; font-size:17px; letter-spacing:5px; color:#eaf6f5; text-shadow:0 0 10px rgba(140,220,220,0.45);}
 </style>
 </head>
 <body>
@@ -87,10 +111,33 @@
     <div class="scrim"></div>
     <div class="home-wordmark">Crescendo</div>
     <div class="home-menu">
-      <div class="home-item">ジュークボックス</div>
-      <div class="home-item">スタジオ</div>
+      <div class="aqbtn" id="btn-jukebox">
+        <div class="caustic-layer"></div>
+        <div style="position:relative; height:100%; display:flex; align-items:center; justify-content:center;">
+          <div class="label">JUKEBOX</div>
+        </div>
+      </div>
+      <div class="aqbtn" id="btn-studio">
+        <div class="caustic-layer"></div>
+        <div style="position:relative; height:100%; display:flex; align-items:center; justify-content:center;">
+          <div class="label">STUDIO</div>
+        </div>
+      </div>
     </div>
   </div>
+
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="ripple" x="-80%" y="-80%" width="260%" height="260%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.015 0.03" numOctaves="3" seed="9" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="40" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+    </filter>
+    <filter id="caustic" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.06" numOctaves="2" seed="3" result="noise">
+        <animate attributeName="baseFrequency" values="0.02 0.06;0.03 0.05;0.02 0.06" dur="6s" repeatCount="indefinite"></animate>
+      </feTurbulence>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.6, 0 0 0 0 0.9, 0 0 0 0 0.95, 0 0 0 0.5 0"></feColorMatrix>
+    </filter>
+  </svg>
 
   <audio id="bgm" loop preload="auto">
     <source src="assets/opening-bgm.m4a" type="audio/mp4">
@@ -130,6 +177,39 @@
     } else if(wasPlayingBeforeHidden){
       bgm.play().catch(()=>{});
     }
+  });
+
+  document.querySelectorAll('.aqbtn').forEach(function(btn){
+    function press(){ btn.classList.add('pressed'); }
+    function release(){ btn.classList.remove('pressed'); }
+    btn.addEventListener('touchstart', press, {passive:true});
+    btn.addEventListener('touchend', release);
+    btn.addEventListener('touchcancel', release);
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+    btn.addEventListener('mouseleave', release);
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var rect = btn.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      for(var i=0;i<2;i++){
+        (function(i){
+          setTimeout(function(){
+            var d = document.createElement('div');
+            d.className = 'ripplefx';
+            var size = 180 + Math.random()*100;
+            d.style.width = size + 'px';
+            d.style.height = size + 'px';
+            d.style.left = (x + (Math.random()*16-8)) + 'px';
+            d.style.top = (y + (Math.random()*16-8)) + 'px';
+            btn.appendChild(d);
+            d.addEventListener('animationend', function(){ d.remove(); });
+          }, i*100);
+        })(i);
+      }
+    });
   });
 </script>
 </body>
