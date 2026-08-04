@@ -118,6 +118,16 @@
 
   stage.addEventListener('click', goToHome);
   stage.addEventListener('touchend', goToHome);
+
+  let wasPlayingBeforeHidden = false;
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){
+      wasPlayingBeforeHidden = !bgm.paused;
+      bgm.pause();
+    } else if(wasPlayingBeforeHidden){
+      bgm.play().catch(()=>{});
+    }
+  });
 </script>
 </body>
 </html>
