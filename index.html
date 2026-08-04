@@ -108,8 +108,13 @@
     bgm.currentTime = 0;
     bgm.play().catch(()=>{});
     homeVideo.play().catch(()=>{});
+
     sceneTitle.classList.add('hidden');
-    sceneHome.classList.remove('hidden');
+    sceneTitle.addEventListener('transitionend', function onEnd(e){
+      if(e.propertyName !== 'opacity') return;
+      sceneTitle.removeEventListener('transitionend', onEnd);
+      sceneHome.classList.remove('hidden');
+    });
   }
 
   stage.addEventListener('click', goToHome);
