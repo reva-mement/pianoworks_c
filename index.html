@@ -69,24 +69,27 @@
   }
   .ripplefx{
     position:absolute; border-radius:50%;
-    background:radial-gradient(circle, rgba(200,240,240,0.55) 0%, rgba(150,220,220,0.25) 45%, rgba(150,220,220,0) 72%);
+    background:radial-gradient(circle, rgba(230,224,208,0.5) 0%, rgba(200,194,178,0.25) 45%, rgba(200,194,178,0) 72%);
     filter:url(#ripple);
     pointer-events:none;
     animation:ripple 1.2s ease-out forwards;
   }
   .aqbtn{
     position:relative; width:240px; height:74px; cursor:pointer; overflow:hidden; border-radius:4px;
-    border:2px solid #c9a869;
+    border:2px solid #a9a49690;
     box-shadow:inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -8px 16px rgba(0,0,0,0.35), 0 3px 0 rgba(0,0,0,0.5);
-    background:linear-gradient(180deg, #23484b 0%, #0d2326 100%);
+    background:linear-gradient(180deg, #3d3a35 0%, #141210 100%);
     transition:transform 0.09s ease-out, box-shadow 0.09s ease-out;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;
+    user-select:none;
   }
   .aqbtn.pressed{
     transform:translateY(2px) scale(0.985);
     box-shadow:inset 0 3px 8px rgba(0,0,0,0.55), inset 0 -4px 10px rgba(0,0,0,0.3), 0 1px 0 rgba(0,0,0,0.5);
   }
-  .aqbtn .caustic-layer{position:absolute; inset:0; opacity:.35; mix-blend-mode:screen; filter:url(#caustic);}
-  .aqbtn .label{font-family:'Yomogi', cursive; font-size:17px; letter-spacing:5px; color:#eaf6f5; text-shadow:0 0 10px rgba(140,220,220,0.45);}
+  .aqbtn .caustic-layer{position:absolute; inset:0; opacity:.3; mix-blend-mode:screen; filter:url(#caustic);}
+  .aqbtn .label{font-family:'Yomogi', cursive; font-size:17px; letter-spacing:5px; color:#f3ede0; text-shadow:0 0 10px rgba(230,224,208,0.4);}
 </style>
 </head>
 <body>
@@ -135,7 +138,7 @@
       <feTurbulence type="fractalNoise" baseFrequency="0.02 0.06" numOctaves="2" seed="3" result="noise">
         <animate attributeName="baseFrequency" values="0.02 0.06;0.03 0.05;0.02 0.06" dur="6s" repeatCount="indefinite"></animate>
       </feTurbulence>
-      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.6, 0 0 0 0 0.9, 0 0 0 0 0.95, 0 0 0 0.5 0"></feColorMatrix>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.85, 0 0 0 0 0.8, 0 0 0 0 0.7, 0 0 0 0.5 0"></feColorMatrix>
     </filter>
   </svg>
 
