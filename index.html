@@ -11,7 +11,7 @@
   html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden;}
   .stage{
     position:relative;
-    width:100vw;height:100vh;height:100dvh;
+    width:100vw;height:100vh;height:100svh;
     max-width:480px;
     margin:0 auto;
     overflow:hidden;
@@ -21,6 +21,9 @@
     position:absolute; inset:0;
     opacity:1;
     transition:opacity 0.9s ease;
+    will-change:opacity;
+    transform:translateZ(0);
+    backface-visibility:hidden;
   }
   .scene.hidden{
     opacity:0;
