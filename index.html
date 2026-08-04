@@ -61,7 +61,7 @@
 
   /* ---- home scene ---- */
   .home-wordmark{position:absolute;top:8%;left:0;right:0;text-align:center;font-family:'Cormorant Garamond', serif;font-style:italic;font-size:20px;color:#efe4cf;opacity:.85;}
-  .home-menu{position:absolute;left:0;right:0;top:50%;transform:translateY(-46%);display:flex;flex-direction:column;align-items:center;gap:22px;}
+  .home-menu{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:row;justify-content:center;gap:0;padding:0;box-sizing:border-box;}
 
   @keyframes ripple{
     0%{transform:translate(-50%,-50%) scale(0.05); opacity:0.55;}
@@ -75,7 +75,7 @@
     animation:ripple 1.2s ease-out forwards;
   }
   .aqbtn{
-    position:relative; width:240px; height:74px; cursor:pointer; overflow:hidden; border-radius:4px;
+    position:relative; flex:1; min-width:0; height:64px; cursor:pointer; overflow:hidden; border-radius:0;
     border:2px solid #a9a49690;
     box-shadow:inset 0 2px 6px rgba(0,0,0,0.25), inset 0 -8px 16px rgba(0,0,0,0.2), 0 3px 0 rgba(0,0,0,0.35);
     background:rgba(20,18,15,0.32);
@@ -93,7 +93,8 @@
     -webkit-backdrop-filter:blur(2px) saturate(1.25);
   }
   .aqbtn .caustic-layer{position:absolute; inset:0; opacity:.3; mix-blend-mode:screen; filter:url(#caustic);}
-  .aqbtn .label{font-family:'Yomogi', cursive; font-size:17px; letter-spacing:5px; color:#f3ede0; text-shadow:0 0 10px rgba(230,224,208,0.4);}
+  .aqbtn + .aqbtn{border-left:none;}
+  .aqbtn .label{font-family:'Yomogi', cursive; font-size:13px; letter-spacing:2px; color:#f3ede0; text-shadow:0 0 10px rgba(230,224,208,0.4); white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -118,6 +119,12 @@
     <div class="scrim"></div>
     <div class="home-wordmark">Crescendo</div>
     <div class="home-menu">
+      <div class="aqbtn" id="btn-import">
+        <div class="caustic-layer"></div>
+        <div style="position:relative; height:100%; display:flex; align-items:center; justify-content:center;">
+          <div class="label">IMPORT</div>
+        </div>
+      </div>
       <div class="aqbtn" id="btn-jukebox">
         <div class="caustic-layer"></div>
         <div style="position:relative; height:100%; display:flex; align-items:center; justify-content:center;">
