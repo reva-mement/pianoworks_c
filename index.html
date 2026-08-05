@@ -133,6 +133,8 @@
     </video>
     <div class="scrim"></div>
     <div class="home-wordmark">Crescendo</div>
+    <input type="file" id="midi-upload" accept=".mid,.midi" style="display:none;">
+    <div id="import-status" style="position:absolute; left:0; right:0; top:40%; text-align:center; font-family:'Zen Old Mincho', serif; font-size:13px; letter-spacing:2px; color:#efe4cf; opacity:0; transition:opacity 0.4s ease; pointer-events:none;"></div>
     <div class="home-menu">
       <div class="aqbtn" id="btn-import">
         <div class="caustic-layer"></div>
@@ -265,6 +267,46 @@
       var t = e.changedTouches && e.changedTouches[0];
       if(t) spawnBackgroundRipple(t.clientX, t.clientY);
     });
+  });
+
+  // ---- MIDI import ----
+  var midiInput = document.getElementById('midi-upload');
+  var importStatus = document.getElementById('import-status');
+  var btnImport = document.getElementById('btn-import');
+
+  function showImportStatus(text, autoHide){
+    importStatus.textContent = text;
+    importStatus.style.opacity = '1';
+    if(autoHide){
+      setTimeout(function(){ importStatus.style.opacity = '0'; }, 2200);
+    }
+  }
+
+  btnImport.addEventListener('click', function(e){
+    // 波紋処理はaqbtn共通のclickリスナーで既に発火するので、ここではファイル選択だけ開く
+    midiInput.click();
+  });
+
+  midiInput.addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+
+    showImportStatus('読み込み中…', false);
+
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var arrayBuffer = ev.target.result;
+      // TODO: 本体のextractNotesFromMidi相当のパーサーをここに移植する
+      console.log('MIDI loaded:', file.name, arrayBuffer.byteLength, 'bytes');
+      showImportStatus('「' + file.name.replace(/\.[^/.]+$/, '') + '」を読み込みました', true);
+    };
+    reader.onerror = function(){
+      showImportStatus('読み込みに失敗しました', true);
+    };
+    reader.readAsArrayBuffer(file);
+
+    // 同じファイルを連続で選び直せるようにリセット
+    midiInput.value = '';
   });
 </script>
 </body>
