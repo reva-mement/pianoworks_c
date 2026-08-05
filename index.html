@@ -155,6 +155,14 @@
         </div>
       </div>
     </div>
+
+    <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.92); display:none; flex-direction:column; z-index:20;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
+        <div style="font-family:'Cormorant Garamond', serif; font-style:italic; font-size:20px; color:#efe4cf;">Jukebox</div>
+        <div id="jukebox-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
+      </div>
+      <div id="jukebox-list" style="flex:1; overflow-y:auto; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:10px;"></div>
+    </div>
   </div>
 
   <svg width="0" height="0" style="position:absolute">
@@ -303,14 +311,20 @@
         player.loadArrayBuffer(arrayBuffer);
 
         var songData = extractNotesFromMidi(player);
-        window.currentSongData = songData; // 次の画面（Studio等）へ引き継ぐ想定の置き場所
-        window.currentMidiFileName = file.name;
+        var entry = {
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          songData: songData,
+          durationMs: window.currentSongDurationMs || 0
+        };
+        window.jukeboxLibrary = window.jukeboxLibrary || [];
+        window.jukeboxLibrary.push(entry);
+        renderJukeboxList();
 
         console.log('MIDI parsed:', file.name, songData.length, 'notes');
 
         if(songData.length > 0){
-          var durationSec = Math.round((window.currentSongDurationMs || 0) / 1000);
-          showImportStatus('「' + file.name.replace(/\.[^/.]+$/, '') + '」　' + songData.length + '音 / 約' + durationSec + '秒', true);
+          var durationSec = Math.round(entry.durationMs / 1000);
+          showImportStatus('「' + entry.name + '」　' + songData.length + '音 / 約' + durationSec + '秒', true);
         } else {
           showImportStatus('音符が見つかりませんでした', true);
         }
@@ -402,6 +416,170 @@
 
     return songData;
   }
+
+  // ---- ピアノ再生エンジン（Salamander 3レイヤー） ----
+  var SAMPLE_NOTES = [
+    {n:'A0',m:21},{n:'C1',m:24},{n:'Ds1',m:27},{n:'Fs1',m:30},{n:'A1',m:33},
+    {n:'C2',m:36},{n:'Ds2',m:39},{n:'Fs2',m:42},{n:'A2',m:45},
+    {n:'C3',m:48},{n:'Ds3',m:51},{n:'Fs3',m:54},{n:'A3',m:57},
+    {n:'C4',m:60},{n:'Ds4',m:63},{n:'Fs4',m:66},{n:'A4',m:69},
+    {n:'C5',m:72},{n:'Ds5',m:75},{n:'Fs5',m:78},{n:'A5',m:81},
+    {n:'C6',m:84},{n:'Ds6',m:87},{n:'Fs6',m:90},{n:'A6',m:93},
+    {n:'C7',m:96},{n:'Ds7',m:99},{n:'Fs7',m:102},{n:'A7',m:105},
+    {n:'C8',m:108}
+  ];
+
+  var pianoCtx = null;
+  var pianoBuffers = { soft:{}, mid:{}, loud:{} };
+  var pianoLoaded = false;
+  var pianoLoadingPromise = null;
+
+  function loadPianoSamples(){
+    if (pianoLoadingPromise) return pianoLoadingPromise;
+    pianoCtx = pianoCtx || new (window.AudioContext || window.webkitAudioContext)();
+    var layers = ['soft','mid','loud'];
+    var tasks = [];
+    layers.forEach(function(layer){
+      SAMPLE_NOTES.forEach(function(sn){
+        var url = 'assets/sounds/' + layer + '/' + sn.n + '.opus';
+        tasks.push(
+          fetch(url)
+            .then(function(r){ return r.arrayBuffer(); })
+            .then(function(buf){ return pianoCtx.decodeAudioData(buf); })
+            .then(function(decoded){ pianoBuffers[layer][sn.n] = decoded; })
+            .catch(function(err){ console.error('sample load failed:', url, err); })
+        );
+      });
+    });
+    pianoLoadingPromise = Promise.all(tasks).then(function(){
+      pianoLoaded = true;
+      console.log('Piano samples loaded');
+    });
+    return pianoLoadingPromise;
+  }
+
+  function nearestSample(midiPitch){
+    var best = SAMPLE_NOTES[0];
+    var bestDist = Math.abs(midiPitch - best.m);
+    for (var i = 1; i < SAMPLE_NOTES.length; i++) {
+      var d = Math.abs(midiPitch - SAMPLE_NOTES[i].m);
+      if (d < bestDist) { best = SAMPLE_NOTES[i]; bestDist = d; }
+    }
+    return best;
+  }
+
+  function velocityToLayer(v){
+    var v127 = v <= 1 ? v * 127 : v;
+    if (v127 < 45) return 'soft';
+    if (v127 < 95) return 'mid';
+    return 'loud';
+  }
+
+  function scheduleNote(note, startAt){
+    var layer = velocityToLayer(note.velocity);
+    var sample = nearestSample(note.pitch);
+    var buffer = pianoBuffers[layer][sample.n];
+    if (!buffer) return;
+
+    var semitoneDiff = note.pitch - sample.m;
+    var playbackRate = Math.pow(2, semitoneDiff / 12);
+
+    var src = pianoCtx.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = playbackRate;
+
+    var gainNode = pianoCtx.createGain();
+    var v127 = note.velocity <= 1 ? note.velocity * 127 : note.velocity;
+    gainNode.gain.value = Math.max(0.15, Math.min(1, v127 / 110));
+
+    src.connect(gainNode).connect(pianoCtx.destination);
+    src.start(startAt);
+  }
+
+  var currentPlayback = { timeouts: [], playing: false, index: -1 };
+
+  function stopJukeboxPlayback(){
+    currentPlayback.timeouts.forEach(function(t){ clearTimeout(t); });
+    currentPlayback.timeouts = [];
+    currentPlayback.playing = false;
+    renderJukeboxList();
+  }
+
+  function playSong(index){
+    stopJukeboxPlayback();
+    var entry = window.jukeboxLibrary[index];
+    if (!entry) return;
+
+    currentPlayback.playing = true;
+    currentPlayback.index = index;
+    renderJukeboxList();
+
+    loadPianoSamples().then(function(){
+      if (!currentPlayback.playing || currentPlayback.index !== index) return; // 読み込み待ちの間に停止/切替された場合は何もしない
+      var startAt = pianoCtx.currentTime + 0.15;
+      entry.songData.forEach(function(note){
+        scheduleNote(note, startAt + note.time / 1000);
+      });
+      var endTimeout = setTimeout(function(){
+        currentPlayback.playing = false;
+        renderJukeboxList();
+      }, entry.durationMs + 400);
+      currentPlayback.timeouts.push(endTimeout);
+    });
+  }
+
+  function renderJukeboxList(){
+    var list = document.getElementById('jukebox-list');
+    if (!list) return;
+    var lib = window.jukeboxLibrary || [];
+    list.innerHTML = '';
+
+    if (lib.length === 0) {
+      var empty = document.createElement('div');
+      empty.style.cssText = "color:#cbbfa8; font-family:'Zen Old Mincho', serif; font-size:13px; padding:20px 4px; opacity:.8;";
+      empty.textContent = 'まだ曲がありません。IMPORTからMIDIを読み込んでください。';
+      list.appendChild(empty);
+      return;
+    }
+
+    lib.forEach(function(entry, i){
+      var row = document.createElement('div');
+      var isPlaying = currentPlayback.playing && currentPlayback.index === i;
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border:1px solid " + (isPlaying ? "rgba(232,150,66,0.85)" : "rgba(169,164,150,0.4)") + "; border-radius:3px; background:rgba(20,17,13,0.5); cursor:pointer;";
+
+      var label = document.createElement('div');
+      label.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:14px; color:#f3ede0; letter-spacing:1px;";
+      label.textContent = (isPlaying ? '♪ ' : '') + entry.name;
+
+      var dur = document.createElement('div');
+      dur.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:11px; color:#a99f8c;";
+      dur.textContent = Math.round(entry.durationMs/1000) + '秒';
+
+      row.appendChild(label);
+      row.appendChild(dur);
+
+      row.addEventListener('click', function(e){
+        e.stopPropagation();
+        if (isPlaying) { stopJukeboxPlayback(); }
+        else { playSong(i); }
+      });
+
+      list.appendChild(row);
+    });
+  }
+
+  var jukeboxOverlay = document.getElementById('jukebox-overlay');
+  var btnJukebox = document.getElementById('btn-jukebox');
+  btnJukebox.addEventListener('click', function(e){
+    jukeboxOverlay.style.display = 'flex';
+    renderJukeboxList();
+    loadPianoSamples(); // 開いたタイミングで先読みを始めておく
+  });
+  document.getElementById('jukebox-close').addEventListener('click', function(e){
+    e.stopPropagation();
+    stopJukeboxPlayback();
+    jukeboxOverlay.style.display = 'none';
+  });
 </script>
 </body>
 </html>
