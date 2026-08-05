@@ -294,11 +294,30 @@
     showImportStatus('読み込み中…', false);
 
     var reader = new FileReader();
-    reader.onload = function(ev){
+    reader.onload = async function(ev){
       var arrayBuffer = ev.target.result;
-      // TODO: 本体のextractNotesFromMidi相当のパーサーをここに移植する
-      console.log('MIDI loaded:', file.name, arrayBuffer.byteLength, 'bytes');
-      showImportStatus('「' + file.name.replace(/\.[^/.]+$/, '') + '」を読み込みました', true);
+      try {
+        var Lib = await import('./assets/midiplayer.js');
+        var PlayerConstructor = Lib.default.Player;
+        var player = new PlayerConstructor(function(){}); // 再生イベントは今回不要なのでno-op
+        player.loadArrayBuffer(arrayBuffer);
+
+        var songData = extractNotesFromMidi(player);
+        window.currentSongData = songData; // 次の画面（Studio等）へ引き継ぐ想定の置き場所
+        window.currentMidiFileName = file.name;
+
+        console.log('MIDI parsed:', file.name, songData.length, 'notes');
+
+        if(songData.length > 0){
+          var durationSec = Math.round((window.currentSongDurationMs || 0) / 1000);
+          showImportStatus('「' + file.name.replace(/\.[^/.]+$/, '') + '」　' + songData.length + '音 / 約' + durationSec + '秒', true);
+        } else {
+          showImportStatus('音符が見つかりませんでした', true);
+        }
+      } catch(err){
+        console.error('MIDI parse error:', err);
+        showImportStatus('解析に失敗しました', true);
+      }
     };
     reader.onerror = function(){
       showImportStatus('読み込みに失敗しました', true);
@@ -308,6 +327,81 @@
     // 同じファイルを連続で選び直せるようにリセット
     midiInput.value = '';
   });
+
+  // ---- extractNotesFromMidi: 本体(main.js)から移植 ----
+  function extractNotesFromMidi(player){
+    var division = player.division;
+    var allEvents = [];
+    (player.tracks || []).forEach(function(track){
+      if (track && Array.isArray(track.events)) {
+        allEvents.push.apply(allEvents, track.events);
+      }
+    });
+
+    var tempoEvents = allEvents
+      .filter(function(ev){ return ev.name === 'Set Tempo' && typeof ev.tick === 'number' && ev.data; })
+      .map(function(ev){ return { tick: ev.tick, bpm: ev.data }; })
+      .sort(function(a,b){ return a.tick - b.tick; });
+
+    if (tempoEvents.length === 0 || tempoEvents[0].tick > 0) {
+      tempoEvents.unshift({ tick: 0, bpm: player.tempo || 120 });
+    }
+
+    var segments = [];
+    tempoEvents.forEach(function(te){
+      var msPerTick = (60 / te.bpm / division) * 1000;
+      var prev = segments[segments.length - 1];
+      var startMs = prev ? prev.startMs + (te.tick - prev.startTick) * prev.msPerTick : 0;
+      segments.push({ startTick: te.tick, startMs: startMs, msPerTick: msPerTick });
+    });
+
+    function tickToMs(targetTick){
+      for (var i = segments.length - 1; i >= 0; i--) {
+        if (segments[i].startTick <= targetTick) {
+          var seg = segments[i];
+          return seg.startMs + (targetTick - seg.startTick) * seg.msPerTick;
+        }
+      }
+      return 0;
+    }
+
+    var songData = [];
+    (player.tracks || []).forEach(function(track){
+      if (!track || !Array.isArray(track.events)) return;
+      var activeNotes = {};
+
+      track.events.forEach(function(ev){
+        if (ev.name === "Note on" && ev.velocity > 0) {
+          activeNotes[ev.noteNumber] = { startTick: ev.tick, velocity: ev.velocity };
+        }
+        if (ev.name === "Note off" || (ev.name === "Note on" && ev.velocity === 0)) {
+          var info = activeNotes[ev.noteNumber];
+          if (info) {
+            var startMs = tickToMs(info.startTick);
+            var endMs = tickToMs(ev.tick);
+            songData.push({
+              pitch: ev.noteNumber,
+              velocity: info.velocity,
+              time: startMs,
+              duration: Math.max(0, endMs - startMs)
+            });
+            delete activeNotes[ev.noteNumber];
+          }
+        }
+      });
+    });
+
+    songData.sort(function(a,b){ return a.time - b.time; });
+
+    if (songData.length > 0) {
+      var lastNote = songData[songData.length - 1];
+      window.currentSongDurationMs = lastNote.time + (lastNote.duration || 0);
+    } else {
+      window.currentSongDurationMs = 0;
+    }
+
+    return songData;
+  }
 </script>
 </body>
 </html>
