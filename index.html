@@ -314,7 +314,8 @@
         var entry = {
           name: file.name.replace(/\.[^/.]+$/, ''),
           songData: songData,
-          durationMs: window.currentSongDurationMs || 0
+          durationMs: window.currentSongDurationMs || 0,
+          scoreHistory: [] // Studio実装後、プレイのたびにスコア(0-100)を追加していく想定
         };
         window.jukeboxLibrary = window.jukeboxLibrary || [];
         window.jukeboxLibrary.push(entry);
@@ -528,6 +529,40 @@
     });
   }
 
+  function drawSparkline(canvas, history){
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (!history || history.length === 0) {
+      ctx.strokeStyle = 'rgba(169,164,150,0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2,3]);
+      ctx.beginPath();
+      ctx.moveTo(4, h/2);
+      ctx.lineTo(w-4, h/2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
+
+    var maxScore = 100;
+    ctx.strokeStyle = 'rgba(232,150,66,0.85)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    history.forEach(function(score, i){
+      var x = 4 + (i / Math.max(1, history.length - 1)) * (w - 8);
+      var y = h - 4 - (score / maxScore) * (h - 8);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
   function renderJukeboxList(){
     var list = document.getElementById('jukebox-list');
     if (!list) return;
@@ -543,28 +578,54 @@
     }
 
     lib.forEach(function(entry, i){
-      var row = document.createElement('div');
       var isPlaying = currentPlayback.playing && currentPlayback.index === i;
-      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border:1px solid " + (isPlaying ? "rgba(232,150,66,0.85)" : "rgba(169,164,150,0.4)") + "; border-radius:3px; background:rgba(20,17,13,0.5); cursor:pointer;";
 
-      var label = document.createElement('div');
-      label.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:14px; color:#f3ede0; letter-spacing:1px;";
-      label.textContent = (isPlaying ? '♪ ' : '') + entry.name;
+      var row = document.createElement('div');
+      row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid " + (isPlaying ? "rgba(232,150,66,0.85)" : "rgba(169,164,150,0.35)") + "; border-radius:3px; background:rgba(20,17,13,0.5);";
 
-      var dur = document.createElement('div');
-      dur.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:11px; color:#a99f8c;";
-      dur.textContent = Math.round(entry.durationMs/1000) + '秒';
+      // No.
+      var noEl = document.createElement('div');
+      noEl.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:12px; color:#a99f8c; width:20px; flex-shrink:0;";
+      noEl.textContent = (i + 1);
 
-      row.appendChild(label);
-      row.appendChild(dur);
+      // タイトル
+      var title = document.createElement('div');
+      title.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      title.textContent = entry.name;
 
-      row.addEventListener('click', function(e){
+      // 再生ボタン
+      var playBtn = document.createElement('div');
+      playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
+      playBtn.textContent = isPlaying ? '■' : '▶';
+      playBtn.addEventListener('click', function(e){
         e.stopPropagation();
         if (isPlaying) { stopJukeboxPlayback(); }
         else { playSong(i); }
       });
 
+      // グラフ（スパークライン）
+      var graphCanvas = document.createElement('canvas');
+      graphCanvas.style.cssText = "flex-shrink:0; width:56px; height:24px;";
+
+      // 削除ボタン
+      var delBtn = document.createElement('div');
+      delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        if (isPlaying) stopJukeboxPlayback();
+        window.jukeboxLibrary.splice(i, 1);
+        renderJukeboxList();
+      });
+
+      row.appendChild(noEl);
+      row.appendChild(title);
+      row.appendChild(playBtn);
+      row.appendChild(graphCanvas);
+      row.appendChild(delBtn);
       list.appendChild(row);
+
+      drawSparkline(graphCanvas, entry.scoreHistory);
     });
   }
 
