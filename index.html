@@ -63,6 +63,17 @@
   .home-wordmark{position:absolute;top:8%;left:0;right:0;text-align:center;font-family:'Cormorant Garamond', serif;font-style:italic;font-size:20px;color:#efe4cf;opacity:.85;}
   .home-menu{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:row;justify-content:center;gap:0;padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box;}
 
+  @keyframes bgripple{
+    0%{transform:translate(-50%,-50%) scale(0.05); opacity:0.6; border-width:2px;}
+    100%{transform:translate(-50%,-50%) scale(1); opacity:0; border-width:0.5px;}
+  }
+  .bgripple{
+    position:absolute; border-radius:50%;
+    border:2px solid rgba(230,224,208,0.55);
+    background:transparent;
+    pointer-events:none;
+    animation:bgripple 1s ease-out forwards;
+  }
   @keyframes ripple{
     0%{transform:translate(-50%,-50%) scale(0.05); opacity:0.55;}
     100%{transform:translate(-50%,-50%) scale(1); opacity:0;}
@@ -226,6 +237,26 @@
         })(i);
       }
     });
+  });
+
+  function spawnBackgroundRipple(clientX, clientY){
+    var rect = stage.getBoundingClientRect();
+    var x = clientX - rect.left;
+    var y = clientY - rect.top;
+    var d = document.createElement('div');
+    d.className = 'bgripple';
+    var size = 140 + Math.random()*60;
+    d.style.width = size + 'px';
+    d.style.height = size + 'px';
+    d.style.left = x + 'px';
+    d.style.top = y + 'px';
+    stage.appendChild(d);
+    d.addEventListener('animationend', function(){ d.remove(); });
+  }
+  stage.addEventListener('click', function(e){ spawnBackgroundRipple(e.clientX, e.clientY); });
+  stage.addEventListener('touchend', function(e){
+    var t = e.changedTouches && e.changedTouches[0];
+    if(t) spawnBackgroundRipple(t.clientX, t.clientY);
   });
 </script>
 </body>
