@@ -30,10 +30,13 @@ export function loadPianoSamples() {
   var tasks = [];
   layers.forEach(function (layer) {
     SAMPLE_NOTES.forEach(function (sn) {
-      var url = 'assets/sounds/' + layer + '/' + sn.n + '.opus';
+      var url = 'assets/' + layer + '/' + sn.n + '.opus';
       tasks.push(
         fetch(url)
-          .then(function (r) { return r.arrayBuffer(); })
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+            return r.arrayBuffer();
+          })
           .then(function (buf) { return ctx.decodeAudioData(buf); })
           .then(function (decoded) { pianoBuffers[layer][sn.n] = decoded; })
           .catch(function (err) { console.error('sample load failed:', url, err); })
