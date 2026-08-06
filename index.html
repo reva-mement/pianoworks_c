@@ -16,6 +16,9 @@
     margin:0 auto;
     overflow:hidden;
     background:#000;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
   }
   .scene{
     position:absolute; inset:0;
@@ -284,8 +287,12 @@
     });
   }
   [sceneTitle, sceneHome].forEach(function(scene){
-    scene.addEventListener('click', function(e){ spawnBackgroundRipple(e.clientX, e.clientY); });
+    scene.addEventListener('click', function(e){
+      if (e.target.closest && e.target.closest('#jukebox-overlay')) return;
+      spawnBackgroundRipple(e.clientX, e.clientY);
+    });
     scene.addEventListener('touchend', function(e){
+      if (e.target.closest && e.target.closest('#jukebox-overlay')) return;
       var t = e.changedTouches && e.changedTouches[0];
       if(t) spawnBackgroundRipple(t.clientX, t.clientY);
     });
@@ -314,6 +321,7 @@
 
     function onPointerDown(e){
       if (e.target.closest && e.target.closest('.aqbtn')) return; // ボタン上は対象外
+      if (e.target.closest && e.target.closest('#jukebox-overlay')) return; // Jukebox内は対象外
       dragging = true;
       lastX = e.clientX; lastY = e.clientY;
     }
