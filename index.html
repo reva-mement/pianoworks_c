@@ -76,6 +76,19 @@
     pointer-events:none;
     animation:bgripple 1.8s ease-out forwards;
   }
+  @keyframes dragripple{
+    0%{transform:translate(-50%,-50%) scale(0.05); opacity:0.5; border-width:2.5px;}
+    100%{transform:translate(-50%,-50%) scale(1); opacity:0; border-width:0.5px;}
+  }
+  .dragripple{
+    position:absolute; border-radius:50%;
+    border:2.5px solid rgba(221,208,197,0.5);
+    box-shadow:0 0 6px rgba(221,208,197,0.25);
+    background:transparent;
+    filter:blur(2px);
+    pointer-events:none;
+    animation:dragripple 0.9s ease-out forwards;
+  }
   @keyframes ripple{
     0%{transform:translate(-50%,-50%) scale(0.05); opacity:0.55;}
     100%{transform:translate(-50%,-50%) scale(1); opacity:0;}
@@ -278,6 +291,48 @@
       if(t) spawnBackgroundRipple(t.clientX, t.clientY);
     });
   });
+
+  // ---- なぞり（ドラッグ）中の波紋 ----
+  function spawnDragRipple(clientX, clientY){
+    var rect = stage.getBoundingClientRect();
+    var x = clientX - rect.left;
+    var y = clientY - rect.top;
+    var d = document.createElement('div');
+    d.className = 'dragripple';
+    var size = 70 + Math.random()*30;
+    d.style.width = size + 'px';
+    d.style.height = size + 'px';
+    d.style.left = x + 'px';
+    d.style.top = y + 'px';
+    stage.appendChild(d);
+    d.addEventListener('animationend', function(){ d.remove(); });
+  }
+
+  (function(){
+    var dragging = false;
+    var lastX = 0, lastY = 0;
+    var MIN_DIST = 18; // これ以上動いたら次の波紋を出す
+
+    function onPointerDown(e){
+      if (e.target.closest && e.target.closest('.aqbtn')) return; // ボタン上は対象外
+      dragging = true;
+      lastX = e.clientX; lastY = e.clientY;
+    }
+    function onPointerMove(e){
+      if (!dragging) return;
+      var dx = e.clientX - lastX, dy = e.clientY - lastY;
+      if (Math.sqrt(dx*dx + dy*dy) >= MIN_DIST) {
+        spawnDragRipple(e.clientX, e.clientY);
+        lastX = e.clientX; lastY = e.clientY;
+      }
+    }
+    function onPointerUp(){ dragging = false; }
+
+    stage.addEventListener('pointerdown', onPointerDown);
+    stage.addEventListener('pointermove', onPointerMove);
+    stage.addEventListener('pointerup', onPointerUp);
+    stage.addEventListener('pointercancel', onPointerUp);
+  })();
 
 
   initJukebox();
