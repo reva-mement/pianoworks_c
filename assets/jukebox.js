@@ -117,7 +117,7 @@ function renderJukeboxList() {
   // ---- 特典曲（削除不可、常に先頭） ----
   var bonusPlaying = currentPlayback.playing && currentPlayback.index === 'bonus';
   var bonusRow = document.createElement('div');
-  bonusRow.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid " + (bonusPlaying ? "rgba(232,150,66,0.9)" : "rgba(232,150,66,0.5)") + "; border-radius:3px; background:rgba(40,30,15,0.5);";
+  bonusRow.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid " + (bonusPlaying ? "rgba(232,150,66,0.85)" : "rgba(232,150,66,0.4)") + ";";
 
   var bonusMark = document.createElement('div');
   bonusMark.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:12px; color:#e8a24a; width:20px; flex-shrink:0;";
@@ -149,10 +149,6 @@ function renderJukeboxList() {
   list.appendChild(bonusRow);
 
   if (library.length === 0) {
-    var empty = document.createElement('div');
-    empty.style.cssText = "color:#cbbfa8; font-family:'Zen Old Mincho', serif; font-size:13px; padding:20px 4px; opacity:.8;";
-    empty.textContent = 'まだ曲がありません。IMPORTからMIDIを読み込んでください。';
-    list.appendChild(empty);
     return;
   }
 
@@ -160,7 +156,7 @@ function renderJukeboxList() {
     var isPlaying = currentPlayback.playing && currentPlayback.index === i;
 
     var row = document.createElement('div');
-    row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid " + (isPlaying ? "rgba(232,150,66,0.85)" : "rgba(169,164,150,0.35)") + "; border-radius:3px; background:rgba(20,17,13,0.5);";
+    row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid " + (isPlaying ? "rgba(232,150,66,0.85)" : "rgba(169,164,150,0.3)") + ";";
 
     var noEl = document.createElement('div');
     noEl.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:12px; color:#a99f8c; width:20px; flex-shrink:0;";
