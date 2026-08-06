@@ -120,11 +120,11 @@ function renderJukeboxList() {
   bonusRow.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid " + (bonusPlaying ? "rgba(232,150,66,0.85)" : "rgba(232,150,66,0.4)") + ";";
 
   var bonusMark = document.createElement('div');
-  bonusMark.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:12px; color:#e8a24a; width:20px; flex-shrink:0;";
+  bonusMark.style.cssText = "font-family:'Yomogi', cursive; font-size:12px; color:#e8a24a; width:20px; flex-shrink:0;";
   bonusMark.textContent = '★';
 
   var bonusTitle = document.createElement('div');
-  bonusTitle.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+  bonusTitle.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
   bonusTitle.textContent = BONUS_TRACK.name;
 
   var bonusPlayBtn = document.createElement('div');
@@ -159,11 +159,11 @@ function renderJukeboxList() {
     row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid " + (isPlaying ? "rgba(232,150,66,0.85)" : "rgba(169,164,150,0.3)") + ";";
 
     var noEl = document.createElement('div');
-    noEl.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:12px; color:#a99f8c; width:20px; flex-shrink:0;";
+    noEl.style.cssText = "font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; width:20px; flex-shrink:0;";
     noEl.textContent = (i + 1);
 
     var title = document.createElement('div');
-    title.style.cssText = "font-family:'Zen Old Mincho', serif; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+    title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
     title.textContent = entry.name;
 
     var playBtn = document.createElement('div');
