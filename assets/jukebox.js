@@ -75,38 +75,52 @@ var BONUS_TRACK = {
 };
 var bonusAudioEl = null;
 
-function drawSparkline(canvas, history) {
-  var ctx = canvas.getContext('2d');
-  var dpr = window.devicePixelRatio || 1;
-  var rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  var w = rect.width, h = rect.height;
-  ctx.clearRect(0, 0, w, h);
+// ---- 再生位置(シーク)を管理する状態 ----
+var playbackState = {
+  ctx: null,
+  notes: [],
+  nextIndex: 0,
+  startCtxTime: 0,   // notesのtime=0が、AudioContext上のどの時刻に対応するか
+  intervalId: null,
+  durationMs: 0,
+  gainCompensation: 1,
+  seeking: false,        // シークバーをドラッグ中は true (音の予約を止める)
+  frozenElapsedMs: 0      // ドラッグ中に表示・保持しておく経過時間
+};
+var activeSeekFillEl = null; // 再生中の行のシークバー(進捗表示)への参照
 
-  if (!history || history.length === 0) {
-    ctx.strokeStyle = 'rgba(169,164,150,0.35)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 3]);
-    ctx.beginPath();
-    ctx.moveTo(4, h / 2);
-    ctx.lineTo(w - 4, h / 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    return;
+function getElapsedMs() {
+  if (playbackState.seeking) return playbackState.frozenElapsedMs;
+  if (!playbackState.ctx) return 0;
+  return (playbackState.ctx.currentTime - playbackState.startCtxTime) * 1000;
+}
+
+// notesはtime昇順ソート済み前提。指定ミリ秒以降で最初に来る音符のインデックスを返す
+function findIndexAtTime(notes, ms) {
+  var lo = 0, hi = notes.length;
+  while (lo < hi) {
+    var mid = (lo + hi) >> 1;
+    if (notes[mid].time < ms) lo = mid + 1; else hi = mid;
   }
+  return lo;
+}
 
-  var maxScore = 100;
-  ctx.strokeStyle = 'rgba(232,150,66,0.85)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  history.forEach(function (score, i) {
-    var x = 4 + (i / Math.max(1, history.length - 1)) * (w - 8);
-    var y = h - 4 - (score / maxScore) * (h - 8);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
+function updateSeekBarProgress(elapsedMs) {
+  if (!activeSeekFillEl || !playbackState.durationMs) return;
+  var pct = Math.max(0, Math.min(100, (elapsedMs / playbackState.durationMs) * 100));
+  activeSeekFillEl.style.width = pct + '%';
+}
+
+// 指定ミリ秒の位置へ移動する(早送り・巻き戻し)
+function seekTo(newElapsedMs) {
+  newElapsedMs = Math.max(0, Math.min(playbackState.durationMs, newElapsedMs));
+  stopAllNotes();
+  playbackState.nextIndex = findIndexAtTime(playbackState.notes, newElapsedMs);
+  if (playbackState.ctx) {
+    playbackState.startCtxTime = playbackState.ctx.currentTime - newElapsedMs / 1000;
+  }
+  playbackState.frozenElapsedMs = newElapsedMs;
+  updateSeekBarProgress(newElapsedMs);
 }
 
 function renderJukeboxList() {
@@ -174,8 +188,48 @@ function renderJukeboxList() {
       if (isPlaying) { stopJukeboxPlayback(); } else { playSong(i); }
     });
 
-    var graphCanvas = document.createElement('canvas');
-    graphCanvas.style.cssText = "flex-shrink:0; width:56px; height:24px;";
+    var seekBarTrack = document.createElement('div');
+    seekBarTrack.style.cssText = "flex-shrink:0; width:70px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;" + (isPlaying ? " cursor:pointer;" : "");
+    var seekBarFill = document.createElement('div');
+    seekBarFill.style.cssText = "position:absolute; top:0; left:0; height:100%; border-radius:3px; background:rgba(232,150,66,0.85); width:0%; pointer-events:none;";
+    seekBarTrack.appendChild(seekBarFill);
+
+    if (isPlaying) {
+      activeSeekFillEl = seekBarFill;
+      updateSeekBarProgress(getElapsedMs());
+
+      var dragging = false;
+      var posToMs = function (clientX) {
+        var rect = seekBarTrack.getBoundingClientRect();
+        var ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+        return ratio * playbackState.durationMs;
+      };
+      seekBarTrack.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
+        dragging = true;
+        playbackState.seeking = true; // ドラッグ中は音の予約を止める(一時停止)
+        stopAllNotes();
+        var ms = posToMs(e.clientX);
+        playbackState.frozenElapsedMs = ms;
+        updateSeekBarProgress(ms);
+        try { seekBarTrack.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      seekBarTrack.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        var ms = posToMs(e.clientX);
+        playbackState.frozenElapsedMs = ms;
+        updateSeekBarProgress(ms);
+      });
+      var endDrag = function (e) {
+        if (!dragging) return;
+        dragging = false;
+        var ms = playbackState.frozenElapsedMs;
+        seekTo(ms); // 離した位置から再生を再開する
+        playbackState.seeking = false;
+      };
+      seekBarTrack.addEventListener('pointerup', endDrag);
+      seekBarTrack.addEventListener('pointercancel', endDrag);
+    }
 
     var delBtn = document.createElement('div');
     delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
@@ -197,20 +251,20 @@ function renderJukeboxList() {
     row.appendChild(noEl);
     row.appendChild(title);
     row.appendChild(playBtn);
-    row.appendChild(graphCanvas);
+    row.appendChild(seekBarTrack);
     row.appendChild(delBtn);
     list.appendChild(row);
-
-    drawSparkline(graphCanvas, entry.scoreHistory);
   });
 }
 
 function stopJukeboxPlayback() {
+  stopPlaybackTicking();
   currentPlayback.timeouts.forEach(function (t) { clearTimeout(t); });
   currentPlayback.timeouts = [];
   currentPlayback.playing = false;
-  stopAllNotes(); // 予約済み・再生中の音をすべて止める(これをしないと、鳴らし忘れの音が延々と積み重なる)
+  stopAllNotes(); // 再生中の音をすべて止める
   if (bonusAudioEl) { bonusAudioEl.pause(); bonusAudioEl.currentTime = 0; }
+  activeSeekFillEl = null;
   renderJukeboxList();
 }
 
@@ -249,43 +303,50 @@ function playSong(index) {
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
       if (!currentPlayback.playing || currentPlayback.index !== index) return;
-      startRealtimeScheduler(entry.songData, ctx, entry.gainCompensation || 1);
-      var endTimeout = setTimeout(function () {
-        currentPlayback.playing = false;
-        renderJukeboxList();
-      }, entry.durationMs + 400);
-      currentPlayback.timeouts.push(endTimeout);
+      playbackState.ctx = ctx;
+      playbackState.notes = entry.songData;
+      playbackState.nextIndex = 0;
+      playbackState.startCtxTime = ctx.currentTime;
+      playbackState.durationMs = entry.durationMs;
+      playbackState.gainCompensation = entry.gainCompensation || 1;
+      playbackState.seeking = false;
+      playbackState.frozenElapsedMs = 0;
+      startPlaybackTicking();
     });
   });
 }
 
 // PC版(studio.js)と同じ、リアルタイム駆動の再生方式。
 // 未来のタイムスタンプでまとめて予約するのではなく、一定間隔(20ms)で「今の再生位置」を
-// チェックし、その瞬間が来た音符だけを都度playNoteで鳴らす。同じ音程が連打された時に
-// 前の音を止める処理はplayNote側が担うので、ここでは何も気にせず順番に鳴らすだけでよい。
-function startRealtimeScheduler(notes, ctx, gainCompensation) {
-  var TICK_MS = 20; // PC版のlookaheadScanTickと同じ間隔
-  var nextIndex = 0;
-  var startCtxTime = ctx.currentTime;
-  var compensation = gainCompensation || 1;
-
-  function tick() {
-    if (!currentPlayback.playing) return; // 停止されていたら何もしない
-    var elapsedMs = (ctx.currentTime - startCtxTime) * 1000;
-    while (nextIndex < notes.length && notes[nextIndex].time <= elapsedMs) {
-      var note = notes[nextIndex];
-      var adjustedVelocity = Math.max(1, Math.min(100, note.velocity * compensation));
-      playNote(note.pitch, adjustedVelocity, note.duration);
-      nextIndex++;
-    }
-    if (nextIndex >= notes.length) {
-      clearInterval(intervalId);
-    }
+// チェックし、その瞬間が来た音符だけを都度playNoteで鳴らす。シーク(位置移動)にも対応する。
+function schedulerTick() {
+  if (!currentPlayback.playing || playbackState.seeking) return;
+  var elapsedMs = getElapsedMs();
+  var notes = playbackState.notes;
+  while (playbackState.nextIndex < notes.length && notes[playbackState.nextIndex].time <= elapsedMs) {
+    var note = notes[playbackState.nextIndex];
+    var adjustedVelocity = Math.max(1, Math.min(100, note.velocity * playbackState.gainCompensation));
+    playNote(note.pitch, adjustedVelocity, note.duration);
+    playbackState.nextIndex++;
   }
+  updateSeekBarProgress(elapsedMs);
+  if (elapsedMs >= playbackState.durationMs + 400) {
+    currentPlayback.playing = false;
+    renderJukeboxList();
+  }
+}
 
-  var intervalId = setInterval(tick, TICK_MS);
-  currentPlayback.timeouts.push(intervalId); // stopJukeboxPlaybackのclearTimeoutで一緒に止まる(clearIntervalと同等に扱える)
-  tick(); // 最初の分をすぐに処理しておく
+function startPlaybackTicking() {
+  stopPlaybackTicking();
+  playbackState.intervalId = setInterval(schedulerTick, 20);
+  schedulerTick(); // 最初の分をすぐに処理しておく
+}
+
+function stopPlaybackTicking() {
+  if (playbackState.intervalId) {
+    clearInterval(playbackState.intervalId);
+    playbackState.intervalId = null;
+  }
 }
 
 function showImportStatus(text, autoHide) {
@@ -405,7 +466,15 @@ export function initJukebox() {
       if (ctx.state === 'suspended') ctx.resume();
       var notes = entry.songData.slice(0, maxNotes);
       console.log('[debugPlayLimited]', entry.name, '先頭' + notes.length + '音のみ再生');
-      startRealtimeScheduler(notes, ctx);
+      playbackState.ctx = ctx;
+      playbackState.notes = notes;
+      playbackState.nextIndex = 0;
+      playbackState.startCtxTime = ctx.currentTime;
+      playbackState.durationMs = notes.length ? notes[notes.length - 1].time + 1000 : 0;
+      playbackState.gainCompensation = entry.gainCompensation || 1;
+      playbackState.seeking = false;
+      currentPlayback.playing = true;
+      startPlaybackTicking();
     },
     // 単発の音を今すぐ1つだけ鳴らす
     playOneNote: function (pitch, velocity) {
