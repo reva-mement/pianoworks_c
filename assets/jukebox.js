@@ -249,7 +249,7 @@ function playSong(index) {
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
       if (!currentPlayback.playing || currentPlayback.index !== index) return;
-      startRealtimeScheduler(entry.songData, ctx);
+      startRealtimeScheduler(entry.songData, ctx, entry.gainCompensation || 1);
       var endTimeout = setTimeout(function () {
         currentPlayback.playing = false;
         renderJukeboxList();
@@ -263,17 +263,19 @@ function playSong(index) {
 // 未来のタイムスタンプでまとめて予約するのではなく、一定間隔(20ms)で「今の再生位置」を
 // チェックし、その瞬間が来た音符だけを都度playNoteで鳴らす。同じ音程が連打された時に
 // 前の音を止める処理はplayNote側が担うので、ここでは何も気にせず順番に鳴らすだけでよい。
-function startRealtimeScheduler(notes, ctx) {
+function startRealtimeScheduler(notes, ctx, gainCompensation) {
   var TICK_MS = 20; // PC版のlookaheadScanTickと同じ間隔
   var nextIndex = 0;
   var startCtxTime = ctx.currentTime;
+  var compensation = gainCompensation || 1;
 
   function tick() {
     if (!currentPlayback.playing) return; // 停止されていたら何もしない
     var elapsedMs = (ctx.currentTime - startCtxTime) * 1000;
     while (nextIndex < notes.length && notes[nextIndex].time <= elapsedMs) {
       var note = notes[nextIndex];
-      playNote(note.pitch, note.velocity, note.duration);
+      var adjustedVelocity = Math.max(1, Math.min(100, note.velocity * compensation));
+      playNote(note.pitch, adjustedVelocity, note.duration);
       nextIndex++;
     }
     if (nextIndex >= notes.length) {
@@ -309,10 +311,17 @@ function handleMidiFile(file) {
       player.loadArrayBuffer(arrayBuffer);
 
       var parsed = extractNotesFromMidi(player);
+      // 曲ごとのベロシティの基準がバラバラなので、平均70を基準に補正係数を計算しておく
+      // (極端な曲でも破綻しないよう、補正の強さは0.5〜2.0倍の範囲に収める)
+      var TARGET_AVG_VELOCITY = 70;
+      var rawFactor = TARGET_AVG_VELOCITY / Math.max(1, parsed.avgVelocity);
+      var gainCompensation = Math.max(0.5, Math.min(2.0, rawFactor));
+
       var entry = {
         name: file.name.replace(/\.[^/.]+$/, ''),
         songData: parsed.notes,
         durationMs: parsed.durationMs,
+        gainCompensation: gainCompensation,
         scoreHistory: []
       };
 

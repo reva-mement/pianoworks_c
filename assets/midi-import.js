@@ -77,8 +77,17 @@ export function extractNotesFromMidi(player) {
 
   songData.sort(function (a, b) { return a.time - b.time; });
 
+  // 曲全体の平均的な強さ(ベロシティ)を計算しておく。曲ごとの音量差を補正するのに使う
+  var avgVelocity = 70; // データがない場合の無難な既定値
+  if (songData.length > 0) {
+    var sum = 0;
+    songData.forEach(function (n) { sum += n.velocity; });
+    avgVelocity = sum / songData.length;
+  }
+
   return {
     notes: songData,
-    durationMs: songData.length > 0 ? lastEndMs : 0
+    durationMs: songData.length > 0 ? lastEndMs : 0,
+    avgVelocity: avgVelocity
   };
 }
