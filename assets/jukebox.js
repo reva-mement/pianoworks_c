@@ -2,7 +2,7 @@
 // 曲の取込(IMPORT)・保存(IndexedDB)・一覧表示・再生(JUKEBOX)をまとめて担当する。
 
 import { extractNotesFromMidi } from './midi-import.js';
-import { loadPianoSamples, scheduleNote, getPianoCtx } from './audio-engine.js';
+import { loadPianoSamples, scheduleNote, getPianoCtx, stopAllNotes } from './audio-engine.js';
 
 // ---- IndexedDBによる永続化（本体のplaynote-db.jsと同じ考え方の簡易版） ----
 var jukeboxDB = {
@@ -206,6 +206,7 @@ function stopJukeboxPlayback() {
   currentPlayback.timeouts.forEach(function (t) { clearTimeout(t); });
   currentPlayback.timeouts = [];
   currentPlayback.playing = false;
+  stopAllNotes(); // 予約済み・再生中の音をすべて止める(これをしないと、鳴らし忘れの音が延々と積み重なる)
   if (bonusAudioEl) { bonusAudioEl.pause(); bonusAudioEl.currentTime = 0; }
   renderJukeboxList();
 }

@@ -17,9 +17,23 @@ var SAMPLE_NOTES = [
 var pianoCtx = null;
 var pianoBuffers = { soft: {}, mid: {}, loud: {} };
 var pianoLoadingPromise = null;
+var masterGain = null;
+var activeSources = []; // 予約済み・再生中のAudioBufferSourceNodeを追跡し、停止できるようにする
 
 export function getPianoCtx() {
-  pianoCtx = pianoCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (!pianoCtx) {
+    pianoCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // 複数の音が重なった時に音量を足し算しすぎて歪む(音割れする)のを防ぐリミッター
+    var compressor = pianoCtx.createDynamicsCompressor();
+    compressor.threshold.value = -12;
+    compressor.knee.value = 20;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+    masterGain = pianoCtx.createGain();
+    masterGain.gain.value = 0.85;
+    masterGain.connect(compressor).connect(pianoCtx.destination);
+  }
   return pianoCtx;
 }
 
@@ -31,22 +45,33 @@ export function loadPianoSamples() {
   layers.forEach(function (layer) {
     SAMPLE_NOTES.forEach(function (sn) {
       var url = 'assets/' + layer + '/' + sn.n + '.opus';
-      tasks.push(
-        fetch(url)
-          .then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
-            return r.arrayBuffer();
-          })
-          .then(function (buf) { return ctx.decodeAudioData(buf); })
-          .then(function (decoded) { pianoBuffers[layer][sn.n] = decoded; })
-          .catch(function (err) { console.error('sample load failed:', url, err); })
-      );
+      tasks.push(fetchSampleWithRetry(url, ctx, 2).then(function (decoded) {
+        if (decoded) pianoBuffers[layer][sn.n] = decoded;
+      }));
     });
   });
   pianoLoadingPromise = Promise.all(tasks).then(function () {
     console.log('Piano samples loaded');
   });
   return pianoLoadingPromise;
+}
+
+// モバイル回線などでの一時的な通信エラー(ERR_CONNECTION_RESET等)に備えて、失敗時は数回リトライする
+function fetchSampleWithRetry(url, ctx, retriesLeft) {
+  return fetch(url)
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+      return r.arrayBuffer();
+    })
+    .then(function (buf) { return ctx.decodeAudioData(buf); })
+    .catch(function (err) {
+      if (retriesLeft > 0) {
+        console.warn('retrying sample load:', url, err);
+        return fetchSampleWithRetry(url, ctx, retriesLeft - 1);
+      }
+      console.error('sample load failed:', url, err);
+      return null;
+    });
 }
 
 function nearestSample(midiPitch) {
@@ -85,6 +110,20 @@ export function scheduleNote(note, startAt) {
   var v127 = note.velocity <= 1 ? note.velocity * 127 : note.velocity;
   gainNode.gain.value = Math.max(0.15, Math.min(1, v127 / 110));
 
-  src.connect(gainNode).connect(ctx.destination);
+  src.connect(gainNode).connect(masterGain);
   src.start(startAt);
+
+  activeSources.push(src);
+  src.addEventListener('ended', function () {
+    var idx = activeSources.indexOf(src);
+    if (idx !== -1) activeSources.splice(idx, 1);
+  });
+}
+
+// 再生中・予約済みの音を、すべて即座に止める(「停止」ボタン用)
+export function stopAllNotes() {
+  activeSources.forEach(function (src) {
+    try { src.stop(); } catch (err) { /* 既に停止済みの場合は無視 */ }
+  });
+  activeSources = [];
 }
