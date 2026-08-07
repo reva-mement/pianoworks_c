@@ -31,7 +31,7 @@ export function getPianoCtx() {
     compressor.attack.value = 0.003;
     compressor.release.value = 0.15;
     masterGain = pianoCtx.createGain();
-    masterGain.gain.value = 0.85;
+    masterGain.gain.value = 2.2;
     masterGain.connect(compressor).connect(pianoCtx.destination);
   }
   return pianoCtx;
