@@ -13,7 +13,11 @@ export function extractNotesFromMidi(player) {
 
   var tempoEvents = allEvents
     .filter(function (ev) { return ev.name === 'Set Tempo' && typeof ev.tick === 'number' && ev.data; })
-    .map(function (ev) { return { tick: ev.tick, bpm: ev.data }; })
+    .map(function (ev) {
+      // 明らかに壊れた極端な値だけを穏当な範囲に収める(イベント自体は残す=区間の連続性を壊さない)
+      var bpm = Math.max(20, Math.min(400, ev.data));
+      return { tick: ev.tick, bpm: bpm };
+    })
     .sort(function (a, b) { return a.tick - b.tick; });
 
   if (tempoEvents.length === 0 || tempoEvents[0].tick > 0) {

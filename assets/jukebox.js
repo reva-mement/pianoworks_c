@@ -238,15 +238,20 @@ function playSong(index) {
   loadPianoSamples().then(function () {
     if (!currentPlayback.playing || currentPlayback.index !== index) return;
     var ctx = getPianoCtx();
-    var startAt = ctx.currentTime + 0.15;
-    entry.songData.forEach(function (note) {
-      scheduleNote(note, startAt + note.time / 1000);
+    // 自動再生ポリシーでAudioContextが一時停止状態のままだと、無音のまま何も鳴らない
+    var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
+    resumePromise.then(function () {
+      if (!currentPlayback.playing || currentPlayback.index !== index) return;
+      var startAt = ctx.currentTime + 0.15;
+      entry.songData.forEach(function (note) {
+        scheduleNote(note, startAt + note.time / 1000);
+      });
+      var endTimeout = setTimeout(function () {
+        currentPlayback.playing = false;
+        renderJukeboxList();
+      }, entry.durationMs + 400);
+      currentPlayback.timeouts.push(endTimeout);
     });
-    var endTimeout = setTimeout(function () {
-      currentPlayback.playing = false;
-      renderJukeboxList();
-    }, entry.durationMs + 400);
-    currentPlayback.timeouts.push(endTimeout);
   });
 }
 
@@ -317,6 +322,7 @@ export function initJukebox() {
   els.overlay = document.getElementById('jukebox-overlay');
   els.close = document.getElementById('jukebox-close');
   els.list = document.getElementById('jukebox-list');
+  els.bgm = document.getElementById('bgm');
 
   els.btnImport.addEventListener('click', function () {
     els.midiInput.click();
@@ -333,16 +339,40 @@ export function initJukebox() {
     els.overlay.style.display = 'flex';
     renderJukeboxList();
     loadPianoSamples();
+    fadeBgm(0, 500);
   });
 
   els.close.addEventListener('click', function (e) {
     e.stopPropagation();
     stopJukeboxPlayback();
     els.overlay.style.display = 'none';
+    fadeBgm(1, 500);
   });
 
   jukeboxDB.getAllSongs().then(function (songs) {
     library = songs;
     renderJukeboxList();
   }).catch(function (err) { console.error('jukebox DB load error:', err); });
+}
+
+// BGMの音量をなめらかにフェードさせる(targetVolume: 0〜1, durationMs: フェードにかける時間)
+var bgmFadeRaf = null;
+function fadeBgm(targetVolume, durationMs) {
+  var bgm = els.bgm;
+  if (!bgm) return;
+  if (bgmFadeRaf) cancelAnimationFrame(bgmFadeRaf);
+
+  var startVolume = bgm.volume;
+  var startTime = performance.now();
+
+  function step(now) {
+    var t = Math.min(1, (now - startTime) / durationMs);
+    bgm.volume = startVolume + (targetVolume - startVolume) * t;
+    if (t < 1) {
+      bgmFadeRaf = requestAnimationFrame(step);
+    } else {
+      bgmFadeRaf = null;
+    }
+  }
+  bgmFadeRaf = requestAnimationFrame(step);
 }
