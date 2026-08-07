@@ -120,10 +120,21 @@ export function scheduleNote(note, startAt) {
 
   var gainNode = ctx.createGain();
   var v127 = Math.round(note.velocity / 100 * 127);
-  gainNode.gain.value = Math.max(0.15, Math.min(1, v127 / 110));
+  var peakGain = Math.max(0.15, Math.min(1, v127 / 110));
+  gainNode.gain.value = peakGain;
 
   src.connect(gainNode).connect(masterGain);
   src.start(startAt);
+
+  // MIDIが指定する音の長さに合わせて止める(でないと、サンプルの自然減衰である
+  // 最大15〜23秒がそのまま鳴り続け、密度の高い曲では大量の音が同時に重なって
+  // ブラウザの音声エンジンが処理しきれず、無音になることがある)
+  var noteDurationSec = Math.max(0.05, (note.duration || 250) / 1000);
+  var releaseSec = 0.25; // 急に切れないよう、短いフェードアウトを添える
+  var stopAt = startAt + noteDurationSec + releaseSec;
+  gainNode.gain.setValueAtTime(peakGain, startAt + noteDurationSec);
+  gainNode.gain.linearRampToValueAtTime(0.0001, stopAt);
+  try { src.stop(stopAt); } catch (err) { /* 念のため */ }
 
   activeSources.push(src);
   src.addEventListener('ended', function () {
