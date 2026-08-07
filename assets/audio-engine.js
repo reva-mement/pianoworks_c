@@ -19,6 +19,7 @@ var pianoBuffers = { soft: {}, mid: {}, loud: {} };
 var pianoLoadingPromise = null;
 var masterGain = null;
 var activeSources = []; // 予約済み・再生中のAudioBufferSourceNodeを追跡し、停止できるようにする
+var scheduleNoteDebugCount = 0;
 
 export function getPianoCtx() {
   if (!pianoCtx) {
@@ -31,7 +32,7 @@ export function getPianoCtx() {
     compressor.attack.value = 0.003;
     compressor.release.value = 0.15;
     masterGain = pianoCtx.createGain();
-    masterGain.gain.value = 0.85;
+    masterGain.gain.value = 2.2; // 元の録音自体が控えめな音量だったため底上げする
     masterGain.connect(compressor).connect(pianoCtx.destination);
   }
   return pianoCtx;
@@ -104,6 +105,10 @@ export function scheduleNote(note, startAt) {
   var layer = velocityToLayer(note.velocity);
   var sample = nearestSample(note.pitch);
   var buffer = pianoBuffers[layer][sample.n];
+  scheduleNoteDebugCount = (scheduleNoteDebugCount || 0) + 1;
+  if (scheduleNoteDebugCount <= 5) {
+    console.log('[debug scheduleNote #' + scheduleNoteDebugCount + '] pitch=', note.pitch, 'velocity=', note.velocity, 'layer=', layer, 'sample=', sample.n, 'buffer取得できたか=', !!buffer, 'startAt=', startAt, 'masterGain=', masterGain ? masterGain.gain.value : 'null');
+  }
   if (!buffer) return;
 
   var semitoneDiff = note.pitch - sample.m;

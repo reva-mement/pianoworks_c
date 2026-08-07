@@ -245,15 +245,21 @@ function playSong(index) {
   renderJukeboxList();
 
   loadPianoSamples().then(function () {
+    console.log('[debug] loadPianoSamples完了時点。currentPlayback.playing=', currentPlayback.playing, 'index一致=', currentPlayback.index === index);
     if (!currentPlayback.playing || currentPlayback.index !== index) return;
     // 念のため、まだ再開できていなければここでもう一度試す
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
-      if (!currentPlayback.playing || currentPlayback.index !== index) return;
+      console.log('[debug] resume完了。ctx.state=', ctx.state, 'ctx.currentTime=', ctx.currentTime, '曲の音符数=', entry.songData.length);
+      if (!currentPlayback.playing || currentPlayback.index !== index) { console.log('[debug] ここで中断された(playing/indexの不一致)'); return; }
       var startAt = ctx.currentTime + 0.15;
+      console.log('[debug] startAt=', startAt, '最初の音符のtime(ms)=', entry.songData[0] && entry.songData[0].time, '最後の音符のtime(ms)=', entry.songData[entry.songData.length-1] && entry.songData[entry.songData.length-1].time);
+      var scheduledCount = 0;
       entry.songData.forEach(function (note) {
         scheduleNote(note, startAt + note.time / 1000);
+        scheduledCount++;
       });
+      console.log('[debug] scheduleNoteを呼んだ回数=', scheduledCount);
       var endTimeout = setTimeout(function () {
         currentPlayback.playing = false;
         renderJukeboxList();
