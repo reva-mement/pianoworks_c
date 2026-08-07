@@ -148,6 +148,12 @@
       <source src="assets/home-bg.mp4" type="video/mp4">
     </video>
     <div class="scrim"></div>
+    <div id="btn-settings" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(20,17,13,0.45); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); border:1px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#efe4cf" stroke-width="1.8">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </div>
     <input type="file" id="midi-upload" accept=".mid,.midi" style="display:none;">
     <div id="import-status" style="position:absolute; left:0; right:0; top:40%; text-align:center; font-family:'Yomogi', cursive; font-size:13px; letter-spacing:2px; color:#efe4cf; opacity:0; transition:opacity 0.4s ease; pointer-events:none;"></div>
     <div class="home-menu">
@@ -171,7 +177,7 @@
       </div>
     </div>
 
-    <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.92); display:none; flex-direction:column; z-index:20;">
+    <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; flex-direction:column; z-index:20;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Jukebox</div>
         <div id="jukebox-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
@@ -204,6 +210,15 @@
   const stage = document.getElementById('stage');
   const sceneTitle = document.getElementById('scene-title');
   const sceneHome = document.getElementById('scene-home');
+
+  // 設定ボタン(歯車)：画面自体は未実装。押し込みの反応だけ用意しておく
+  const btnSettings = document.getElementById('btn-settings');
+  btnSettings.addEventListener('click', function(e){
+    e.stopPropagation();
+    btnSettings.style.transform = 'scale(0.9) rotate(20deg)';
+    setTimeout(function(){ btnSettings.style.transform = ''; }, 150);
+    console.log('settings button tapped (screen not implemented yet)');
+  });
   const homeVideo = document.getElementById('homeVideo');
   const bgm = document.getElementById('bgm');
   let started = false;
@@ -322,6 +337,7 @@
     function onPointerDown(e){
       if (e.target.closest && e.target.closest('.aqbtn')) return; // ボタン上は対象外
       if (e.target.closest && e.target.closest('#jukebox-overlay')) return; // Jukebox内は対象外
+      if (e.target.closest && e.target.closest('#btn-settings')) return; // 設定ボタン上は対象外
       dragging = true;
       lastX = e.clientX; lastY = e.clientY;
     }
