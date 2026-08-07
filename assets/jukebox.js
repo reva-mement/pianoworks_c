@@ -2,7 +2,7 @@
 // 曲の取込(IMPORT)・保存(IndexedDB)・一覧表示・再生(JUKEBOX)をまとめて担当する。
 
 import { extractNotesFromMidi } from './midi-import.js';
-import { loadPianoSamples, scheduleNote, getPianoCtx, stopAllNotes } from './audio-engine.js';
+import { loadPianoSamples, playNote, getPianoCtx, stopAllNotes } from './audio-engine.js';
 
 // ---- IndexedDBによる永続化（本体のplaynote-db.jsと同じ考え方の簡易版） ----
 var jukeboxDB = {
@@ -245,21 +245,11 @@ function playSong(index) {
   renderJukeboxList();
 
   loadPianoSamples().then(function () {
-    console.log('[debug] loadPianoSamples完了時点。currentPlayback.playing=', currentPlayback.playing, 'index一致=', currentPlayback.index === index);
     if (!currentPlayback.playing || currentPlayback.index !== index) return;
-    // 念のため、まだ再開できていなければここでもう一度試す
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
-      console.log('[debug] resume完了。ctx.state=', ctx.state, 'ctx.currentTime=', ctx.currentTime, '曲の音符数=', entry.songData.length);
-      if (!currentPlayback.playing || currentPlayback.index !== index) { console.log('[debug] ここで中断された(playing/indexの不一致)'); return; }
-      var startAt = ctx.currentTime + 0.15;
-      console.log('[debug] startAt=', startAt, '最初の音符のtime(ms)=', entry.songData[0] && entry.songData[0].time, '最後の音符のtime(ms)=', entry.songData[entry.songData.length-1] && entry.songData[entry.songData.length-1].time);
-      var scheduledCount = 0;
-      entry.songData.forEach(function (note) {
-        scheduleNote(note, startAt + note.time / 1000);
-        scheduledCount++;
-      });
-      console.log('[debug] scheduleNoteを呼んだ回数=', scheduledCount);
+      if (!currentPlayback.playing || currentPlayback.index !== index) return;
+      startRealtimeScheduler(entry.songData, ctx);
       var endTimeout = setTimeout(function () {
         currentPlayback.playing = false;
         renderJukeboxList();
@@ -267,6 +257,33 @@ function playSong(index) {
       currentPlayback.timeouts.push(endTimeout);
     });
   });
+}
+
+// PC版(studio.js)と同じ、リアルタイム駆動の再生方式。
+// 未来のタイムスタンプでまとめて予約するのではなく、一定間隔(20ms)で「今の再生位置」を
+// チェックし、その瞬間が来た音符だけを都度playNoteで鳴らす。同じ音程が連打された時に
+// 前の音を止める処理はplayNote側が担うので、ここでは何も気にせず順番に鳴らすだけでよい。
+function startRealtimeScheduler(notes, ctx) {
+  var TICK_MS = 20; // PC版のlookaheadScanTickと同じ間隔
+  var nextIndex = 0;
+  var startCtxTime = ctx.currentTime;
+
+  function tick() {
+    if (!currentPlayback.playing) return; // 停止されていたら何もしない
+    var elapsedMs = (ctx.currentTime - startCtxTime) * 1000;
+    while (nextIndex < notes.length && notes[nextIndex].time <= elapsedMs) {
+      var note = notes[nextIndex];
+      playNote(note.pitch, note.velocity, note.duration);
+      nextIndex++;
+    }
+    if (nextIndex >= notes.length) {
+      clearInterval(intervalId);
+    }
+  }
+
+  var intervalId = setInterval(tick, TICK_MS);
+  currentPlayback.timeouts.push(intervalId); // stopJukeboxPlaybackのclearTimeoutで一緒に止まる(clearIntervalと同等に扱える)
+  tick(); // 最初の分をすぐに処理しておく
 }
 
 function showImportStatus(text, autoHide) {
@@ -367,6 +384,28 @@ export function initJukebox() {
     library = songs;
     renderJukeboxList();
   }).catch(function (err) { console.error('jukebox DB load error:', err); });
+
+  // ---- デバッグ用：コンソールから直接いろいろ試せるようにしておく ----
+  window.__jukeboxDebug = {
+    getLibrary: function () { return library; },
+    // 指定した曲の、最初のmaxNotes個だけを、リアルタイム駆動方式で再生する
+    playLimited: function (index, maxNotes) {
+      var entry = library[index];
+      if (!entry) { console.log('その番号の曲はありません'); return; }
+      var ctx = getPianoCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      var notes = entry.songData.slice(0, maxNotes);
+      console.log('[debugPlayLimited]', entry.name, '先頭' + notes.length + '音のみ再生');
+      startRealtimeScheduler(notes, ctx);
+    },
+    // 単発の音を今すぐ1つだけ鳴らす
+    playOneNote: function (pitch, velocity) {
+      var ctx = getPianoCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      playNote(pitch || 60, velocity || 80, 1000);
+      console.log('[debugPlayOneNote] pitch=', pitch || 60);
+    }
+  };
 }
 
 // BGMの音量をなめらかにフェードさせる(targetVolume: 0〜1, durationMs: フェードにかける時間)

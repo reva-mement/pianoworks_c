@@ -2,6 +2,11 @@
 // Salamander Grand Piano（soft/mid/loudの3レイヤー）を使った、
 // 軽量なピアノ再生エンジン。88鍵ぶんのサンプルではなく、
 // 30音だけをサンプリングし、それ以外の音程はピッチシフトで補う。
+//
+// PC版(core.js)の設計にならい、「未来のタイムスタンプでまとめて予約する」のではなく、
+// 「その瞬間が来たら、今すぐ鳴らす／今すぐ止める」というリアルタイム駆動にしている。
+// 音程ごとに1つだけアクティブな音を持ち、同じ音程が連打されたら前の音を止めてから
+// 新しい音を鳴らす（PC版のactiveSources Mapと同じ考え方）。
 
 var SAMPLE_NOTES = [
   {n:'A0',m:21},{n:'C1',m:24},{n:'Ds1',m:27},{n:'Fs1',m:30},{n:'A1',m:33},
@@ -18,8 +23,7 @@ var pianoCtx = null;
 var pianoBuffers = { soft: {}, mid: {}, loud: {} };
 var pianoLoadingPromise = null;
 var masterGain = null;
-var activeSources = []; // 予約済み・再生中のAudioBufferSourceNodeを追跡し、停止できるようにする
-var scheduleNoteDebugCount = 0;
+var activeSources = {}; // 音程(pitch)ごとに、今鳴っている音を1つだけ保持する(PC版のactiveSources Mapと同じ)
 
 export function getPianoCtx() {
   if (!pianoCtx) {
@@ -99,19 +103,21 @@ function velocityToLayer(v) {
   return 'loud';
 }
 
-// note: {pitch, velocity, time, duration}, startAt: AudioContext上の絶対時刻(秒)
-export function scheduleNote(note, startAt) {
+// 今すぐ、指定した音程を鳴らす(PC版のplayNoteに相当)。
+// pitch: MIDIノート番号, velocity: 0-100スケール, durationMs: 目安の長さ(省略時は自然な余韻)
+export function playNote(pitch, velocity, durationMs) {
   var ctx = getPianoCtx();
-  var layer = velocityToLayer(note.velocity);
-  var sample = nearestSample(note.pitch);
+  var now = ctx.currentTime;
+
+  // 同じ音程が既に鳴っていたら、まず素早く止める(連打時のノイズ対策。PC版と同じ)
+  stopNote(pitch, 0.015);
+
+  var layer = velocityToLayer(velocity);
+  var sample = nearestSample(pitch);
   var buffer = pianoBuffers[layer][sample.n];
-  scheduleNoteDebugCount = (scheduleNoteDebugCount || 0) + 1;
-  if (scheduleNoteDebugCount <= 5) {
-    console.log('[debug scheduleNote #' + scheduleNoteDebugCount + '] pitch=', note.pitch, 'velocity=', note.velocity, 'layer=', layer, 'sample=', sample.n, 'buffer取得できたか=', !!buffer, 'startAt=', startAt, 'masterGain=', masterGain ? masterGain.gain.value : 'null');
-  }
   if (!buffer) return;
 
-  var semitoneDiff = note.pitch - sample.m;
+  var semitoneDiff = pitch - sample.m;
   var playbackRate = Math.pow(2, semitoneDiff / 12);
 
   var src = ctx.createBufferSource();
@@ -119,35 +125,48 @@ export function scheduleNote(note, startAt) {
   src.playbackRate.value = playbackRate;
 
   var gainNode = ctx.createGain();
-  var v127 = Math.round(note.velocity / 100 * 127);
+  var v127 = Math.round(velocity / 100 * 127);
   var peakGain = Math.max(0.15, Math.min(1, v127 / 110));
-  gainNode.gain.value = peakGain;
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(peakGain, now + 0.005); // ごく短いアタック
 
   src.connect(gainNode).connect(masterGain);
-  src.start(startAt);
+  src.start(now);
 
-  // MIDIが指定する音の長さに合わせて止める(でないと、サンプルの自然減衰である
-  // 最大15〜23秒がそのまま鳴り続け、密度の高い曲では大量の音が同時に重なって
-  // ブラウザの音声エンジンが処理しきれず、無音になることがある)
-  var noteDurationSec = Math.max(0.05, (note.duration || 250) / 1000);
+  activeSources[pitch] = { src: src, gainNode: gainNode, peakGain: peakGain };
+
+  // 明示的なnote-offが来ない場合に備えて、長さの目安で自動的に止める
+  var durSec = Math.max(0.05, (durationMs || 400) / 1000);
   var releaseSec = 0.2;
-  var stopAt = startAt + noteDurationSec + releaseSec;
-  // setValueAtTime+linearRampの2命令ではなく、setTargetAtTimeの1命令だけで滑らかに減衰させる
-  // (曲の冒頭に何千もの命令が積み重なり、音声スレッドの処理が追いつかなくなるのを防ぐため)
-  gainNode.gain.setTargetAtTime(0.0001, startAt + noteDurationSec, releaseSec / 3);
-  try { src.stop(stopAt); } catch (err) { /* 念のため */ }
+  gainNode.gain.setTargetAtTime(0.0001, now + durSec, releaseSec / 3);
+  try { src.stop(now + durSec + releaseSec + 0.05); } catch (err) { /* 念のため */ }
 
-  activeSources.push(src);
   src.addEventListener('ended', function () {
-    var idx = activeSources.indexOf(src);
-    if (idx !== -1) activeSources.splice(idx, 1);
+    if (activeSources[pitch] && activeSources[pitch].src === src) delete activeSources[pitch];
   });
 }
 
-// 再生中・予約済みの音を、すべて即座に止める(「停止」ボタン用)
+// 今すぐ、指定した音程を止める(PC版のstopNoteに相当)。
+// fadeSec: 消えるまでの時間(短いほど鋭く切れる)
+export function stopNote(pitch, fadeSec) {
+  var entry = activeSources[pitch];
+  if (!entry) return;
+  var ctx = getPianoCtx();
+  var now = ctx.currentTime;
+  var fade = fadeSec != null ? fadeSec : 0.05;
+  try {
+    entry.gainNode.gain.cancelScheduledValues(now);
+    entry.gainNode.gain.setValueAtTime(entry.gainNode.gain.value, now);
+    entry.gainNode.gain.linearRampToValueAtTime(0, now + fade);
+    entry.src.stop(now + fade + 0.02);
+  } catch (err) { /* 既に停止済みの場合は無視 */ }
+  delete activeSources[pitch];
+}
+
+// 再生中の音を、すべて即座に止める(「停止」ボタン用)
 export function stopAllNotes() {
-  activeSources.forEach(function (src) {
-    try { src.stop(); } catch (err) { /* 既に停止済みの場合は無視 */ }
+  Object.keys(activeSources).forEach(function (pitch) {
+    try { activeSources[pitch].src.stop(); } catch (err) { /* 既に停止済みの場合は無視 */ }
   });
-  activeSources = [];
+  activeSources = {};
 }

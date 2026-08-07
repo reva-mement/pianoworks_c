@@ -50,6 +50,10 @@ export function extractNotesFromMidi(player) {
     var activeNotes = {};
 
     track.events.forEach(function (ev) {
+      // ★ チャンネル10（MIDIパーカッション専用）はピアノ音源として再生しない。
+      //   PC版(studio.js)と同じルール。ドラム/シンバル等のノートがピアノで鳴り、
+      //   極端に短い異音になる（かつ音数だけ無駄に増える）のを防ぐ。
+      if (ev.channel === 10) return;
       if (ev.name === "Note on" && ev.velocity > 0) {
         activeNotes[ev.noteNumber] = { startTick: ev.tick, velocity: ev.velocity };
       }
