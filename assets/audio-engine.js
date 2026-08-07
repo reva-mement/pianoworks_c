@@ -130,10 +130,11 @@ export function scheduleNote(note, startAt) {
   // 最大15〜23秒がそのまま鳴り続け、密度の高い曲では大量の音が同時に重なって
   // ブラウザの音声エンジンが処理しきれず、無音になることがある)
   var noteDurationSec = Math.max(0.05, (note.duration || 250) / 1000);
-  var releaseSec = 0.25; // 急に切れないよう、短いフェードアウトを添える
+  var releaseSec = 0.2;
   var stopAt = startAt + noteDurationSec + releaseSec;
-  gainNode.gain.setValueAtTime(peakGain, startAt + noteDurationSec);
-  gainNode.gain.linearRampToValueAtTime(0.0001, stopAt);
+  // setValueAtTime+linearRampの2命令ではなく、setTargetAtTimeの1命令だけで滑らかに減衰させる
+  // (曲の冒頭に何千もの命令が積み重なり、音声スレッドの処理が追いつかなくなるのを防ぐため)
+  gainNode.gain.setTargetAtTime(0.0001, startAt + noteDurationSec, releaseSec / 3);
   try { src.stop(stopAt); } catch (err) { /* 念のため */ }
 
   activeSources.push(src);
