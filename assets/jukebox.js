@@ -367,7 +367,8 @@ function fadeBgm(targetVolume, durationMs) {
 
   function step(now) {
     var t = Math.min(1, (now - startTime) / durationMs);
-    bgm.volume = startVolume + (targetVolume - startVolume) * t;
+    var rawVolume = startVolume + (targetVolume - startVolume) * t;
+    bgm.volume = Math.max(0, Math.min(1, rawVolume)); // 浮動小数点誤差で範囲外になるのを防ぐ
     if (t < 1) {
       bgmFadeRaf = requestAnimationFrame(step);
     } else {
