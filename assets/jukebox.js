@@ -182,8 +182,11 @@ function renderJukeboxList() {
     delBtn.textContent = '×';
     delBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (isPlaying) stopJukeboxPlayback();
       var target = library[i];
+      var confirmed = window.confirm('「' + (target ? target.name : 'この曲') + '」を削除します。本当によろしいですか？');
+      if (!confirmed) return;
+
+      if (isPlaying) stopJukeboxPlayback();
       library.splice(i, 1);
       renderJukeboxList();
       if (target && target.id != null) {
@@ -232,14 +235,18 @@ function playSong(index) {
   var entry = library[index];
   if (!entry) return;
 
+  // ユーザー操作(タップ)の直後、間を置かずに呼ぶ。ここで一呼吸空くと
+  // ブラウザによってはユーザー操作扱いされず、音が有効化されないことがある
+  var ctx = getPianoCtx();
+  if (ctx.state === 'suspended') { ctx.resume(); }
+
   currentPlayback.playing = true;
   currentPlayback.index = index;
   renderJukeboxList();
 
   loadPianoSamples().then(function () {
     if (!currentPlayback.playing || currentPlayback.index !== index) return;
-    var ctx = getPianoCtx();
-    // 自動再生ポリシーでAudioContextが一時停止状態のままだと、無音のまま何も鳴らない
+    // 念のため、まだ再開できていなければここでもう一度試す
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
       if (!currentPlayback.playing || currentPlayback.index !== index) return;
