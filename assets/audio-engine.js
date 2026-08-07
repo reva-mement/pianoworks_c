@@ -42,16 +42,22 @@ export function loadPianoSamples() {
   var ctx = getPianoCtx();
   var layers = ['soft', 'mid', 'loud'];
   var tasks = [];
+  var successCount = 0;
+  var failCount = 0;
   layers.forEach(function (layer) {
     SAMPLE_NOTES.forEach(function (sn) {
       var url = 'assets/' + layer + '/' + sn.n + '.opus';
       tasks.push(fetchSampleWithRetry(url, ctx, 2).then(function (decoded) {
-        if (decoded) pianoBuffers[layer][sn.n] = decoded;
+        if (decoded) { pianoBuffers[layer][sn.n] = decoded; successCount++; }
+        else { failCount++; }
       }));
     });
   });
   pianoLoadingPromise = Promise.all(tasks).then(function () {
-    console.log('Piano samples loaded');
+    console.log('Piano samples loaded: ' + successCount + ' 成功 / ' + failCount + ' 失敗 (合計' + (successCount + failCount) + ')');
+    if (failCount > 0) {
+      console.error('音源の一部または全部が読み込めていません。Networkタブでopusファイルの状態(200/404/CORS等)を確認してください。');
+    }
   });
   return pianoLoadingPromise;
 }
@@ -84,8 +90,9 @@ function nearestSample(midiPitch) {
   return best;
 }
 
+// midiplayer.jsはvelocityを0-127ではなく0-100スケールで出力する仕様のため、それに合わせる
 function velocityToLayer(v) {
-  var v127 = v <= 1 ? v * 127 : v;
+  var v127 = Math.round(v / 100 * 127);
   if (v127 < 45) return 'soft';
   if (v127 < 95) return 'mid';
   return 'loud';
@@ -107,7 +114,7 @@ export function scheduleNote(note, startAt) {
   src.playbackRate.value = playbackRate;
 
   var gainNode = ctx.createGain();
-  var v127 = note.velocity <= 1 ? note.velocity * 127 : note.velocity;
+  var v127 = Math.round(note.velocity / 100 * 127);
   gainNode.gain.value = Math.max(0.15, Math.min(1, v127 / 110));
 
   src.connect(gainNode).connect(masterGain);
