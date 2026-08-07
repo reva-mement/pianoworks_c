@@ -126,6 +126,17 @@
   .aqbtn:first-child{border-top-left-radius:22px;border-bottom-left-radius:22px;}
   .aqbtn:last-child{border-top-right-radius:22px;border-bottom-right-radius:22px;}
   .aqbtn .label{font-family:'Yomogi', cursive; font-size:13px; letter-spacing:2px; color:#f3ede0; text-shadow:0 0 10px rgba(230,224,208,0.4); white-space:nowrap;}
+
+  #btn-piano-mark, #btn-settings{
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.25), inset 0 -6px 12px rgba(0,0,0,0.2), 0 2px 0 rgba(0,0,0,0.3);
+    overflow:hidden;
+  }
+  #btn-piano-mark.pressed, #btn-settings.pressed{
+    transform:translateY(2px) scale(0.92) !important;
+    backdrop-filter:blur(0.5px) !important;
+    -webkit-backdrop-filter:blur(0.5px) !important;
+    box-shadow:inset 0 3px 8px rgba(0,0,0,0.5), inset 0 -3px 8px rgba(0,0,0,0.3), 0 1px 0 rgba(0,0,0,0.4);
+  }
 </style>
 </head>
 <body>
@@ -148,10 +159,10 @@
       <source src="assets/home-bg.mp4" type="video/mp4">
     </video>
     <div class="scrim"></div>
-    <div id="btn-piano-mark" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(20,17,13,0.45); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); border:1px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
+    <div id="btn-piano-mark" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
       <img src="assets/piano-icon.png" alt="" style="width:60%; height:60%; object-fit:contain; pointer-events:none;">
     </div>
-    <div id="btn-settings" style="position:absolute; top:calc(60px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(20,17,13,0.45); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); border:1px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
+    <div id="btn-settings" style="position:absolute; top:calc(60px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbd210" stroke-width="1.8">
         <circle cx="12" cy="12" r="3"></circle>
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -214,22 +225,39 @@
   const sceneTitle = document.getElementById('scene-title');
   const sceneHome = document.getElementById('scene-home');
 
-  // ピアノマークボタン：画面自体は未実装。押し込みの反応だけ用意しておく
-  const btnPianoMark = document.getElementById('btn-piano-mark');
-  btnPianoMark.addEventListener('click', function(e){
-    e.stopPropagation();
-    btnPianoMark.style.transform = 'scale(0.9)';
-    setTimeout(function(){ btnPianoMark.style.transform = ''; }, 150);
-    console.log('piano mark button tapped (screen not implemented yet)');
-  });
+  // ピアノマーク・設定(歯車)ボタン：画面自体は未実装。押し込み+波紋はaqbtnと同じ仕組みにする
+  [document.getElementById('btn-piano-mark'), document.getElementById('btn-settings')].forEach(function(btn){
+    function press(e){ btn.classList.add('pressed'); if(e) e.stopPropagation(); }
+    function release(e){ btn.classList.remove('pressed'); if(e) e.stopPropagation(); }
+    btn.addEventListener('touchstart', press, {passive:true});
+    btn.addEventListener('touchend', release);
+    btn.addEventListener('touchcancel', release);
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+    btn.addEventListener('mouseleave', release);
 
-  // 設定ボタン(歯車)：画面自体は未実装。押し込みの反応だけ用意しておく
-  const btnSettings = document.getElementById('btn-settings');
-  btnSettings.addEventListener('click', function(e){
-    e.stopPropagation();
-    btnSettings.style.transform = 'scale(0.9) rotate(20deg)';
-    setTimeout(function(){ btnSettings.style.transform = ''; }, 150);
-    console.log('settings button tapped (screen not implemented yet)');
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var rect = btn.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      for(var i=0;i<2;i++){
+        (function(i){
+          setTimeout(function(){
+            var d = document.createElement('div');
+            d.className = 'ripplefx';
+            var size = 60 + Math.random()*30;
+            d.style.width = size + 'px';
+            d.style.height = size + 'px';
+            d.style.left = (x + (Math.random()*6-3)) + 'px';
+            d.style.top = (y + (Math.random()*6-3)) + 'px';
+            btn.appendChild(d);
+            d.addEventListener('animationend', function(){ d.remove(); });
+          }, i*100);
+        })(i);
+      }
+      console.log((btn.id === 'btn-piano-mark' ? 'piano mark' : 'settings') + ' button tapped (screen not implemented yet)');
+    });
   });
   const homeVideo = document.getElementById('homeVideo');
   const bgm = document.getElementById('bgm');
