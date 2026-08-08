@@ -180,6 +180,14 @@
     animation:studioNoteBreathe 3.4s ease-in-out infinite;
     cursor:pointer;
   }
+  /* ノーマルスキン：PC版と同じ、塗りつぶしの長方形(角丸なし・輪郭の揺れなし) */
+  #scene-studio-play .studio-note.skin-normal{
+    border-radius:0;
+    border:none;
+    filter:none;
+    animation:none;
+    box-shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
   #scene-studio-play .studio-note .studio-mini-bubble{
     position:absolute;
     border-radius:50%;
