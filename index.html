@@ -50,12 +50,14 @@
     pointer-events:none;
   }
 
-  /* ---- opening scene text ---- */
+  /* ---- opening scene: 背景 → PianoWorks → Crescendo の順にはっきり見せる ---- */
+  #scene-title .art{animation:bgFadeIn 1s ease-out both;}
   @media (prefers-reduced-motion: no-preference){
-    #scene-title .eyebrow{animation:fadein 0.3s ease-out forwards;}
-    #scene-title .title{animation:reveal 5s cubic-bezier(0.16,1,0.3,1) 0.6s both;}
+    #scene-title .eyebrow{animation:fadein 0.5s ease-out 0.9s both;}
+    #scene-title .title{animation:reveal 1.8s cubic-bezier(0.16,1,0.3,1) 1.5s both;}
     .tap{animation:pulse 2.4s ease-in-out infinite;}
   }
+  @keyframes bgFadeIn{from{opacity:0;}to{opacity:1;}}
   @keyframes pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
   @keyframes fadein{from{opacity:0;}to{opacity:.9;}}
   @keyframes reveal{
@@ -562,7 +564,7 @@
   </div>
 
   <!-- Studioの曲ごとの詳細(MAX SCORE・accuracyグラフ)を見るためのモーダル -->
-  <div id="studio-detail-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px;">
+  <div id="studio-detail-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px; opacity:0; transition:opacity 0.35s ease-out;">
     <div style="background:rgba(20,17,13,0.86); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; width:100%; max-width:360px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
       <div id="studio-detail-title" style="font-family:'Yomogi', cursive; font-size:16px; color:#f3ede0; margin-bottom:4px; overflow-wrap:break-word;"></div>
       <div style="font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; margin-bottom:14px;">MAX SCORE: <span id="studio-detail-maxscore" style="color:#e8a24a;">0</span></div>
