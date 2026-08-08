@@ -188,17 +188,39 @@ function buildPlayfield() {
     laneStates[laneIndex].bubbles.push({ el: b, risen: 0, speed: 90 + Math.random() * 50, size: size });
   }
 
-  // ---- 鍵盤から噴き上がり続ける炎(炎スキン限定)。仕組みは泡とまったく同じで、見た目だけ差し替える ----
-  function spawnRisingFlame(fallArea, laneIndex) {
+  // ---- 鍵盤から出る炎(炎スキン限定)。粒をいくつも飛ばすのではなく、
+  //      押している間ずっと1本の炎が存在し続ける、火炎放射器のイメージ ----
+  var activeFlames = {}; // laneIndex -> 炎のDOM要素
+  function showFlamethrower(fallArea, laneIndex) {
+    if (activeFlames[laneIndex]) return; // 既に出ていれば何もしない
     var f = document.createElement('div');
-    f.className = 'studio-rising-flame';
-    var width = 7 + Math.random() * 5;
-    var height = width * (1.8 + Math.random() * 0.8); // 縦長にして、火炎放射器の噴射に近づける
-    f.style.width = width + 'px';
-    f.style.height = height + 'px';
-    f.style.left = (25 + Math.random() * 50) + '%'; // 鍵盤の中央寄りから噴射する
+    f.className = 'studio-flamethrower';
     fallArea.appendChild(f);
-    laneStates[laneIndex].bubbles.push({ el: f, risen: 0, speed: 160 + Math.random() * 80, size: height });
+    requestAnimationFrame(function () { f.classList.add('lit'); }); // 一呼吸おいて伸ばす(ぼうっと出る感じ)
+    activeFlames[laneIndex] = f;
+  }
+  function hideFlamethrower(laneIndex) {
+    var f = activeFlames[laneIndex];
+    if (!f) return;
+    f.classList.remove('lit');
+    f.classList.add('extinguish');
+    setTimeout(function () { if (f.parentNode) f.remove(); }, 200);
+    delete activeFlames[laneIndex];
+  }
+  // 炎が届く範囲(鍵盤上端からのpx)にいる、まだ弾けていないノーツを燃やす
+  var FLAME_REACH_PX = 90;
+  function tryBurnNoteInFlame(fallArea, laneIndex) {
+    var areaHeight = fallArea.clientHeight || 260;
+    var state = laneStates[laneIndex];
+    for (var i = 0; i < state.notes.length; i++) {
+      var record = state.notes[i];
+      if (record.popped || record.holding) continue;
+      if (record.y + record.height >= areaHeight - FLAME_REACH_PX) {
+        var judgment = judgeNoteHit(record, areaHeight);
+        attemptHit(record, fallArea, judgment || 'hit'); // 炎が届いてさえいれば燃える(タイミングはシビアにしない)
+        return;
+      }
+    }
   }
 
   // 鍵盤付近にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)。判定ライン基準で判定する
@@ -222,19 +244,23 @@ function buildPlayfield() {
     var pressedLoopId = null;
     function startPressedStream() {
       if (pressedLoopId) return;
+      var skinId = getCurrentSkinId();
+      if (skinId === 'fire') showFlamethrower(fallArea, laneIndex);
       (function loopPressed() {
-        if (!key.classList.contains('pressed')) { pressedLoopId = null; return; }
-        var skinId = getCurrentSkinId();
-        var nextDelay = 90 + Math.random() * 80;
-        if (skinId === 'normal') {
-          tryHitNearestNote(fallArea, laneIndex); // 泡・炎なし、直接ヒット判定
-        } else if (skinId === 'fire') {
-          spawnRisingFlame(fallArea, laneIndex); // 炎スキン：炎を噴き上らせる
-          nextDelay = 40 + Math.random() * 30; // 火炎放射器のように、途切れなく連続して出す
+        if (!key.classList.contains('pressed')) {
+          pressedLoopId = null;
+          if (getCurrentSkinId() === 'fire') hideFlamethrower(laneIndex);
+          return;
+        }
+        var currentSkin = getCurrentSkinId();
+        if (currentSkin === 'normal') {
+          tryHitNearestNote(fallArea, laneIndex); // 炎・泡なし、直接ヒット判定
+        } else if (currentSkin === 'fire') {
+          tryBurnNoteInFlame(fallArea, laneIndex); // 炎が届く範囲のノーツを燃やし続ける
         } else {
           spawnRisingBubble(fallArea, laneIndex); // 水スキン：泡を立ち上らせる
         }
-        pressedLoopId = setTimeout(loopPressed, nextDelay);
+        pressedLoopId = setTimeout(loopPressed, 60);
       })();
     }
     var mo = new MutationObserver(function () {
