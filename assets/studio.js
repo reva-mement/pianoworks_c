@@ -3,7 +3,7 @@
 // 見た目確認用のダミーノーツを表示する段階で、実際のMIDI連動はまだ行っていない。
 
 import { getCurrentSkinId } from './skin.js';
-import { studioDB } from './jukebox.js';
+import { studioDB, fadeBgm } from './jukebox.js';
 
 var LANES = 6;
 var laneStates = [];
@@ -423,12 +423,14 @@ function renderStudioSongList() {
 export function openStudioList() {
   document.getElementById('scene-home').classList.add('hidden');
   document.getElementById('scene-studio-list').classList.remove('hidden');
+  fadeBgm(0, 500);
   renderStudioSongList();
 }
 
 export function closeStudioList() {
   document.getElementById('scene-studio-list').classList.add('hidden');
   document.getElementById('scene-home').classList.remove('hidden');
+  fadeBgm(0.7, 500); // Jukeboxと同じ基準音量に戻す
 }
 
 // 曲一覧で再生ボタンを押した時に開く、実際のゲーム画面(現時点では水スキンのみ)

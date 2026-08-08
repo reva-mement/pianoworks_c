@@ -511,7 +511,7 @@ function handleMidiFile(file) {
       if (existingNames.indexOf(baseName) !== -1) {
         var suggestedName = findAvailableSongName(baseName, existingNames);
         var confirmed = window.confirm(
-          '同じタイトルの曲「' + baseName + '」が既にあります。\n' +
+          'Studio(Jukebox)に収録した曲に、同名の曲「' + baseName + '」が既にあります。\n' +
           '「' + suggestedName + '」として保存しますか？'
         );
         if (!confirmed) {
@@ -644,8 +644,9 @@ export function initJukebox() {
 }
 
 // BGMの音量をなめらかにフェードさせる(targetVolume: 0〜1, durationMs: フェードにかける時間)
+// Studio側からも同じ演出を使うため、exportして共有する
 var bgmFadeRaf = null;
-function fadeBgm(targetVolume, durationMs) {
+export function fadeBgm(targetVolume, durationMs) {
   var bgm = els.bgm;
   if (!bgm) return;
   if (bgmFadeRaf) cancelAnimationFrame(bgmFadeRaf);
