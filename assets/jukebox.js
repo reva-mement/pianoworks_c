@@ -119,6 +119,7 @@ var playbackState = {
   frozenElapsedMs: 0      // ドラッグ中に表示・保持しておく経過時間
 };
 var activeSeekFillEl = null; // 再生中の行のシークバー(進捗表示)への参照
+var activeBonusSeekFillEl = null; // 特典曲のシークバー(進捗表示)への参照
 
 function getElapsedMs() {
   if (playbackState.seeking || currentPlayback.paused) return playbackState.frozenElapsedMs;
@@ -259,16 +260,74 @@ function renderJukeboxList() {
 
   var bonusButtons = createPlayPauseStopButtons(bonusPlaying, bonusPlaying && currentPlayback.paused, playBonusTrack, stopJukeboxPlayback);
 
-  // 削除ボタンの代わりに、特典曲であることを示すスペーサー（幅を通常行と揃える）
-  var bonusSpacer = document.createElement('div');
-  bonusSpacer.style.cssText = "flex-shrink:0; width:70px;";
+  var isWaterSkinBonus = getCurrentSkinId() === 'water';
+  var bonusSeekTrack = document.createElement('div');
+  var bonusSeekFill = document.createElement('div');
+  if (isWaterSkinBonus) {
+    bonusSeekTrack.style.cssText = "flex-shrink:0; width:70px; height:14px; border-radius:7px; background:rgba(255,255,255,0.06); border:1px solid rgba(200,220,240,0.35); box-shadow:inset 0 1px 2px rgba(255,255,255,0.15); position:relative; overflow:hidden;" + (bonusPlaying ? " cursor:pointer;" : "");
+    bonusSeekFill.style.cssText = "position:absolute; top:0; left:0; height:100%; background:" +
+      "radial-gradient(ellipse at 20% 30%, rgba(180,215,245,0.7) 0%, rgba(180,215,245,0) 55%)," +
+      "radial-gradient(ellipse at 70% 70%, rgba(40,100,190,0.55) 0%, rgba(40,100,190,0) 60%)," +
+      "radial-gradient(ellipse at 45% 15%, rgba(210,230,250,0.5) 0%, rgba(210,230,250,0) 50%)," +
+      "linear-gradient(180deg, rgba(120,175,230,0.6) 0%, rgba(50,110,200,0.7) 100%);" +
+      " width:0%; pointer-events:none; overflow:hidden;";
+    bonusSeekTrack.appendChild(bonusSeekFill);
+    for (var bbi = 0; bbi < 4; bbi++) {
+      var bbubble = document.createElement('div');
+      var bbsize = 2 + Math.random() * 2.5;
+      bbubble.style.cssText = "position:absolute; width:" + bbsize + "px; height:" + bbsize + "px; border-radius:50%; background:rgba(255,255,255,0.75); left:" + (10 + Math.random() * 80) + "%; top:" + (15 + Math.random() * 65) + "%; animation:seekBubbleSway " + (1.8 + Math.random() * 1.4) + "s ease-in-out " + (-Math.random() * 2) + "s infinite;";
+      bonusSeekFill.appendChild(bbubble);
+    }
+  } else {
+    bonusSeekTrack.style.cssText = "flex-shrink:0; width:70px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;" + (bonusPlaying ? " cursor:pointer;" : "");
+    bonusSeekFill.style.cssText = "position:absolute; top:0; left:0; height:100%; border-radius:3px; background:rgba(232,150,66,0.85); width:0%; pointer-events:none;";
+    bonusSeekTrack.appendChild(bonusSeekFill);
+  }
+
+  if (bonusPlaying) {
+    activeBonusSeekFillEl = bonusSeekFill;
+    if (bonusAudioEl && bonusAudioEl.duration) {
+      bonusSeekFill.style.width = Math.max(0, Math.min(100, (bonusAudioEl.currentTime / bonusAudioEl.duration) * 100)) + '%';
+    }
+    var bonusDragging = false;
+    var bonusPosToSec = function (clientX) {
+      var rect = bonusSeekTrack.getBoundingClientRect();
+      var ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+      return ratio * (bonusAudioEl.duration || 0);
+    };
+    bonusSeekTrack.addEventListener('pointerdown', function (e) {
+      e.stopPropagation();
+      bonusDragging = true;
+      bonusAudioEl.pause();
+      var sec = bonusPosToSec(e.clientX);
+      bonusSeekFill.style.width = Math.max(0, Math.min(100, (sec / (bonusAudioEl.duration || 1)) * 100)) + '%';
+      try { bonusSeekTrack.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    bonusSeekTrack.addEventListener('pointermove', function (e) {
+      if (!bonusDragging) return;
+      var sec = bonusPosToSec(e.clientX);
+      bonusSeekFill.style.width = Math.max(0, Math.min(100, (sec / (bonusAudioEl.duration || 1)) * 100)) + '%';
+    });
+    var bonusEndDrag = function (e) {
+      if (!bonusDragging) return;
+      bonusDragging = false;
+      var sec = bonusPosToSec(e.clientX);
+      bonusAudioEl.currentTime = sec;
+      if (currentPlayback.playing && currentPlayback.index === 'bonus' && !currentPlayback.paused) {
+        bonusAudioEl.play().catch(function (err) { console.error('resume after seek failed:', err); });
+      }
+    };
+    bonusSeekTrack.addEventListener('pointerup', bonusEndDrag);
+    bonusSeekTrack.addEventListener('pointercancel', bonusEndDrag);
+  }
+
   var bonusEndSpacer = document.createElement('div');
   bonusEndSpacer.style.cssText = "flex-shrink:0; width:24px;";
 
   bonusRow.appendChild(bonusMark);
   bonusRow.appendChild(bonusTitle);
   bonusRow.appendChild(bonusButtons);
-  bonusRow.appendChild(bonusSpacer);
+  bonusRow.appendChild(bonusSeekTrack);
   bonusRow.appendChild(bonusEndSpacer);
   list.appendChild(bonusRow);
 
@@ -301,7 +360,12 @@ function renderJukeboxList() {
     if (isWaterSkin) {
       // 試験管風：外枠はガラスっぽい縁取り、中身は水色のグラデーションで満たす
       seekBarTrack.style.cssText = "flex-shrink:0; width:70px; height:14px; border-radius:7px; background:rgba(255,255,255,0.06); border:1px solid rgba(200,220,240,0.35); box-shadow:inset 0 1px 2px rgba(255,255,255,0.15); position:relative; overflow:hidden;" + (isPlaying ? " cursor:pointer;" : "");
-      seekBarFill.style.cssText = "position:absolute; top:0; left:0; height:100%; background:linear-gradient(180deg, rgba(150,200,240,0.55) 0%, rgba(60,130,220,0.75) 100%); width:0%; pointer-events:none; overflow:hidden;";
+      seekBarFill.style.cssText = "position:absolute; top:0; left:0; height:100%; background:" +
+        "radial-gradient(ellipse at 20% 30%, rgba(180,215,245,0.7) 0%, rgba(180,215,245,0) 55%)," +
+        "radial-gradient(ellipse at 70% 70%, rgba(40,100,190,0.55) 0%, rgba(40,100,190,0) 60%)," +
+        "radial-gradient(ellipse at 45% 15%, rgba(210,230,250,0.5) 0%, rgba(210,230,250,0) 50%)," +
+        "linear-gradient(180deg, rgba(120,175,230,0.6) 0%, rgba(50,110,200,0.7) 100%);" +
+        " width:0%; pointer-events:none; overflow:hidden;";
       seekBarTrack.appendChild(seekBarFill);
 
       // 中で揺れ動く小さな気泡
@@ -389,6 +453,7 @@ function stopJukeboxPlayback() {
   stopAllNotes(); // 再生中の音をすべて止める
   if (bonusAudioEl) { bonusAudioEl.pause(); bonusAudioEl.currentTime = 0; }
   activeSeekFillEl = null;
+  activeBonusSeekFillEl = null;
   renderJukeboxList();
 }
 
@@ -423,6 +488,11 @@ function playBonusTrack() {
     bonusAudioEl = new Audio(BONUS_TRACK.audioUrl);
     bonusAudioEl.addEventListener('ended', function () {
       handleSongEnded('bonus');
+    });
+    bonusAudioEl.addEventListener('timeupdate', function () {
+      if (!activeBonusSeekFillEl || !bonusAudioEl.duration) return;
+      var pct = Math.max(0, Math.min(100, (bonusAudioEl.currentTime / bonusAudioEl.duration) * 100));
+      activeBonusSeekFillEl.style.width = pct + '%';
     });
   }
   currentPlayback.playing = true;
