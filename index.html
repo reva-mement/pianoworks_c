@@ -408,6 +408,17 @@
       </div>
     </div>
 
+    <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う -->
+    <div id="custom-alert-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px;">
+      <div style="background:rgba(20,17,13,0.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; max-width:320px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
+        <div id="custom-alert-message" style="font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; line-height:1.7; white-space:pre-line; margin-bottom:20px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <div id="custom-alert-cancel" style="font-family:'Yomogi', cursive; font-size:13px; color:#a99f8c; padding:6px 14px; cursor:pointer;">キャンセル</div>
+          <div id="custom-alert-ok" style="font-family:'Yomogi', cursive; font-size:13px; color:#efe4cf; padding:6px 16px; border:1px solid rgba(232,150,66,0.7); border-radius:6px; cursor:pointer;">OK</div>
+        </div>
+      </div>
+    </div>
+
     <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; flex-direction:column; z-index:20;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Jukebox</div>
@@ -455,7 +466,7 @@
 </div>
 
 <script type="module">
-  import { initJukebox } from './assets/jukebox.js';
+  import { initJukebox, fadeBgm } from './assets/jukebox.js';
   import { initSkinList, openSkinList } from './assets/skin.js';
   import { initStudio } from './assets/studio.js';
 
@@ -505,6 +516,32 @@
     });
   });
 
+  // ---- すりガラスデザインの共通アラート/確認モーダル ----
+  function showCustomModal(message, isConfirm) {
+    return new Promise(function (resolve) {
+      var overlay = document.getElementById('custom-alert-overlay');
+      var msgEl = document.getElementById('custom-alert-message');
+      var okBtn = document.getElementById('custom-alert-ok');
+      var cancelBtn = document.getElementById('custom-alert-cancel');
+      msgEl.textContent = message;
+      cancelBtn.style.display = isConfirm ? 'block' : 'none';
+      overlay.style.display = 'flex';
+
+      function cleanup(result) {
+        overlay.style.display = 'none';
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        resolve(result);
+      }
+      function onOk(e) { e.stopPropagation(); cleanup(true); }
+      function onCancel(e) { e.stopPropagation(); cleanup(false); }
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  }
+  window.showCustomAlert = function (message) { return showCustomModal(message, false); };
+  window.showCustomConfirm = function (message) { return showCustomModal(message, true); };
+
   function openSettings(){
     document.getElementById('settings-overlay').style.display = 'flex';
   }
@@ -517,7 +554,8 @@
   });
   document.getElementById('settings-back-to-title').addEventListener('click', function(e){
     e.stopPropagation();
-    location.reload(); // タイトルからの状態を素直に作り直す、確実な「戻る」方法
+    closeSettings();
+    goToTitle();
   });
   document.getElementById('settings-quit-app').addEventListener('click', function(e){
     e.stopPropagation();
@@ -525,7 +563,7 @@
     // ブラウザの仕様上、スクリプトから開いていないタブ・ウィンドウは閉じられないことが多い。
     // その場合に備えて、少し待っても画面が残っていたら一言添える。
     setTimeout(function(){
-      alert('ブラウザの設定上、自動では閉じられませんでした。タブを直接閉じてください。');
+      window.showCustomAlert('ブラウザの設定上、自動では閉じられませんでした。タブを直接閉じてください。');
     }, 400);
   });
 
@@ -545,6 +583,19 @@
       if(e.propertyName !== 'opacity') return;
       sceneTitle.removeEventListener('transitionend', onEnd);
       sceneHome.classList.remove('hidden');
+    });
+  }
+
+  // 設定画面の「タイトルに戻る」用。goToHomeの逆再生で、フェードアウト→フェードインさせる
+  function goToTitle(){
+    if(!started) return;
+    fadeBgm(0, 500);
+    sceneHome.classList.add('hidden');
+    sceneHome.addEventListener('transitionend', function onEnd(e){
+      if(e.propertyName !== 'opacity') return;
+      sceneHome.removeEventListener('transitionend', onEnd);
+      sceneTitle.classList.remove('hidden');
+      started = false; // タイトルから、もう一度goToHomeできるようにする
     });
   }
 
