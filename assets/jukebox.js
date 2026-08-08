@@ -3,6 +3,7 @@
 
 import { extractNotesFromMidi } from './midi-import.js';
 import { loadPianoSamples, playNote, getPianoCtx, stopAllNotes } from './audio-engine.js';
+import { getCurrentSkinId } from './skin.js';
 
 // ---- IndexedDBによる永続化（本体のplaynote-db.jsと同じ考え方の簡易版） ----
 // JukeboxとStudioは、それぞれ別の記録として独立管理する(同じレコードを共有しない)。
@@ -292,11 +293,29 @@ function renderJukeboxList() {
 
     var playPauseStopBtns = createPlayPauseStopButtons(isPlaying, isPlaying && currentPlayback.paused, function () { playSong(i); }, stopJukeboxPlayback);
 
+    var isWaterSkin = getCurrentSkinId() === 'water';
+
     var seekBarTrack = document.createElement('div');
-    seekBarTrack.style.cssText = "flex-shrink:0; width:70px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;" + (isPlaying ? " cursor:pointer;" : "");
     var seekBarFill = document.createElement('div');
-    seekBarFill.style.cssText = "position:absolute; top:0; left:0; height:100%; border-radius:3px; background:rgba(232,150,66,0.85); width:0%; pointer-events:none;";
-    seekBarTrack.appendChild(seekBarFill);
+
+    if (isWaterSkin) {
+      // 試験管風：外枠はガラスっぽい縁取り、中身は水色のグラデーションで満たす
+      seekBarTrack.style.cssText = "flex-shrink:0; width:70px; height:14px; border-radius:7px; background:rgba(255,255,255,0.06); border:1px solid rgba(200,220,240,0.35); box-shadow:inset 0 1px 2px rgba(255,255,255,0.15); position:relative; overflow:hidden;" + (isPlaying ? " cursor:pointer;" : "");
+      seekBarFill.style.cssText = "position:absolute; top:0; left:0; height:100%; background:linear-gradient(180deg, rgba(150,200,240,0.55) 0%, rgba(60,130,220,0.75) 100%); width:0%; pointer-events:none; overflow:hidden;";
+      seekBarTrack.appendChild(seekBarFill);
+
+      // 中で揺れ動く小さな気泡
+      for (var bi = 0; bi < 4; bi++) {
+        var bubble = document.createElement('div');
+        var bsize = 2 + Math.random() * 2.5;
+        bubble.style.cssText = "position:absolute; width:" + bsize + "px; height:" + bsize + "px; border-radius:50%; background:rgba(255,255,255,0.75); left:" + (10 + Math.random() * 80) + "%; top:" + (15 + Math.random() * 65) + "%; animation:seekBubbleSway " + (1.8 + Math.random() * 1.4) + "s ease-in-out " + (-Math.random() * 2) + "s infinite;";
+        seekBarFill.appendChild(bubble);
+      }
+    } else {
+      seekBarTrack.style.cssText = "flex-shrink:0; width:70px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;" + (isPlaying ? " cursor:pointer;" : "");
+      seekBarFill.style.cssText = "position:absolute; top:0; left:0; height:100%; border-radius:3px; background:rgba(232,150,66,0.85); width:0%; pointer-events:none;";
+      seekBarTrack.appendChild(seekBarFill);
+    }
 
     if (isPlaying) {
       activeSeekFillEl = seekBarFill;
