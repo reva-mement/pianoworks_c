@@ -478,6 +478,13 @@ function showImportStatus(text, autoHide) {
   }
 }
 
+// 同じ名前が既にある場合、「name (2)」「name (3)」...と、空いている番号を探す
+function findAvailableSongName(baseName, existingNames) {
+  var n = 2;
+  while (existingNames.indexOf(baseName + ' (' + n + ')') !== -1) { n++; }
+  return baseName + ' (' + n + ')';
+}
+
 function handleMidiFile(file) {
   showImportStatus('読み込み中…', false);
 
@@ -497,8 +504,25 @@ function handleMidiFile(file) {
       var rawFactor = TARGET_AVG_VELOCITY / Math.max(1, parsed.avgVelocity);
       var gainCompensation = Math.max(0.5, Math.min(2.0, rawFactor));
 
+      // 同じタイトルの曲が既にある場合、確認の上で「(2)」等を付けて区別する
+      var baseName = file.name.replace(/\.[^/.]+$/, '');
+      var finalName = baseName;
+      var existingNames = library.map(function (e) { return e.name; });
+      if (existingNames.indexOf(baseName) !== -1) {
+        var suggestedName = findAvailableSongName(baseName, existingNames);
+        var confirmed = window.confirm(
+          '同じタイトルの曲「' + baseName + '」が既にあります。\n' +
+          '「' + suggestedName + '」として保存しますか？'
+        );
+        if (!confirmed) {
+          showImportStatus('取り込みをキャンセルしました', true);
+          return;
+        }
+        finalName = suggestedName;
+      }
+
       var entry = {
-        name: file.name.replace(/\.[^/.]+$/, ''),
+        name: finalName,
         songData: parsed.notes,
         durationMs: parsed.durationMs,
         gainCompensation: gainCompensation,
