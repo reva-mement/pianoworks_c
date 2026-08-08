@@ -64,7 +64,7 @@ var jukeboxDB = {
 };
 
 var library = [];
-var currentPlayback = { timeouts: [], playing: false, index: -1 };
+var currentPlayback = { timeouts: [], playing: false, index: -1, paused: false };
 var els = {}; // DOM要素はinitJukebox()で解決する
 
 var BONUS_TRACK = {
@@ -90,7 +90,7 @@ var playbackState = {
 var activeSeekFillEl = null; // 再生中の行のシークバー(進捗表示)への参照
 
 function getElapsedMs() {
-  if (playbackState.seeking) return playbackState.frozenElapsedMs;
+  if (playbackState.seeking || currentPlayback.paused) return playbackState.frozenElapsedMs;
   if (!playbackState.ctx) return 0;
   return (playbackState.ctx.currentTime - playbackState.startCtxTime) * 1000;
 }
@@ -123,6 +123,99 @@ function seekTo(newElapsedMs) {
   updateSeekBarProgress(newElapsedMs);
 }
 
+// 曲名を長押し(スマホ)・クリック(PC)で全文表示する。
+// スマホ：長押しで開き、指を離しても表示されたまま。もう一度タップで閉じる。
+// PC：クリック＝タップと同じ扱いで、即座に開閉をトグルする。
+function attachTitleExpand(titleEl, fullName) {
+  var expanded = false;
+  var longPressTimer = null;
+  var longPressTriggered = false;
+
+  titleEl.style.position = 'relative';
+  var originalCss = titleEl.style.cssText;
+
+  function expand() {
+    if (expanded) return;
+    expanded = true;
+    titleEl.style.position = 'absolute';
+    titleEl.style.left = '0';
+    titleEl.style.top = '50%';
+    titleEl.style.transform = 'translateY(-50%)';
+    titleEl.style.zIndex = '6';
+    titleEl.style.background = 'rgba(20,17,13,0.96)';
+    titleEl.style.padding = '4px 8px';
+    titleEl.style.borderRadius = '4px';
+    titleEl.style.whiteSpace = 'nowrap';
+    titleEl.style.maxWidth = 'none';
+    titleEl.style.width = 'auto';
+    titleEl.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+  }
+  function collapse() {
+    if (!expanded) return;
+    expanded = false;
+    titleEl.style.cssText = originalCss;
+  }
+  function toggle() {
+    if (expanded) collapse(); else expand();
+  }
+
+  titleEl.addEventListener('pointerdown', function (e) {
+    e.stopPropagation();
+    if (e.pointerType === 'mouse') return; // マウスはpointerup側でクリック相当として処理する
+    longPressTriggered = false;
+    longPressTimer = setTimeout(function () {
+      longPressTriggered = true;
+      expand();
+    }, 450);
+  });
+  titleEl.addEventListener('pointermove', function (e) {
+    if (e.pointerType === 'mouse') return;
+    clearTimeout(longPressTimer); // 指が動いたら長押し判定をキャンセル(スクロール等との衝突防止)
+  });
+  titleEl.addEventListener('pointerup', function (e) {
+    e.stopPropagation();
+    if (e.pointerType === 'mouse') {
+      toggle(); // PC：クリック＝タップと同じ扱いで即座にトグル
+      return;
+    }
+    clearTimeout(longPressTimer);
+    if (!longPressTriggered && expanded) {
+      toggle(); // 短いタップは、既に開いている時だけ「閉じる」として働く
+    }
+    // 長押しで開いた場合は、指を離してもそのまま表示され続ける
+  });
+  titleEl.addEventListener('pointercancel', function () { clearTimeout(longPressTimer); });
+}
+
+// 再生/一時停止ボタンと、停止ボタンのペアを作る
+function createPlayPauseStopButtons(isPlaying, isPaused, onPlay, onStop) {
+  var wrap = document.createElement('div');
+  wrap.style.cssText = "display:flex; gap:6px; flex-shrink:0;";
+
+  var playPauseBtn = document.createElement('div');
+  playPauseBtn.style.cssText = "width:26px; height:26px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:11px; cursor:pointer;";
+  playPauseBtn.textContent = (isPlaying && !isPaused) ? '⏸' : '▶';
+  playPauseBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (!isPlaying) { onPlay(); }
+    else if (isPaused) { resumePlayback(); }
+    else { pausePlayback(); }
+  });
+
+  var stopBtn = document.createElement('div');
+  var stopEnabled = isPlaying;
+  stopBtn.style.cssText = "width:26px; height:26px; border-radius:50%; border:1px solid rgba(232,150,66," + (stopEnabled ? "0.7" : "0.25") + "); display:flex; align-items:center; justify-content:center; color:" + (stopEnabled ? "#efe4cf" : "#6b675e") + "; font-size:10px; cursor:" + (stopEnabled ? "pointer" : "default") + ";";
+  stopBtn.textContent = '■';
+  stopBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (stopEnabled) onStop();
+  });
+
+  wrap.appendChild(playPauseBtn);
+  wrap.appendChild(stopBtn);
+  return wrap;
+}
+
 function renderJukeboxList() {
   var list = els.list;
   if (!list) return;
@@ -138,26 +231,21 @@ function renderJukeboxList() {
   bonusMark.textContent = '★';
 
   var bonusTitle = document.createElement('div');
-  bonusTitle.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+  bonusTitle.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex-shrink:0; width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
   bonusTitle.textContent = BONUS_TRACK.name;
+  attachTitleExpand(bonusTitle, BONUS_TRACK.name);
 
-  var bonusPlayBtn = document.createElement('div');
-  bonusPlayBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.9); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
-  bonusPlayBtn.textContent = bonusPlaying ? '■' : '▶';
-  bonusPlayBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    if (bonusPlaying) { stopJukeboxPlayback(); } else { playBonusTrack(); }
-  });
+  var bonusButtons = createPlayPauseStopButtons(bonusPlaying, bonusPlaying && currentPlayback.paused, playBonusTrack, stopJukeboxPlayback);
 
   // 削除ボタンの代わりに、特典曲であることを示すスペーサー（幅を通常行と揃える）
   var bonusSpacer = document.createElement('div');
-  bonusSpacer.style.cssText = "flex-shrink:0; width:56px;";
+  bonusSpacer.style.cssText = "flex-shrink:0; width:70px;";
   var bonusEndSpacer = document.createElement('div');
   bonusEndSpacer.style.cssText = "flex-shrink:0; width:24px;";
 
   bonusRow.appendChild(bonusMark);
   bonusRow.appendChild(bonusTitle);
-  bonusRow.appendChild(bonusPlayBtn);
+  bonusRow.appendChild(bonusButtons);
   bonusRow.appendChild(bonusSpacer);
   bonusRow.appendChild(bonusEndSpacer);
   list.appendChild(bonusRow);
@@ -177,16 +265,11 @@ function renderJukeboxList() {
     noEl.textContent = (i + 1);
 
     var title = document.createElement('div');
-    title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+    title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex-shrink:0; width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
     title.textContent = entry.name;
+    attachTitleExpand(title, entry.name);
 
-    var playBtn = document.createElement('div');
-    playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
-    playBtn.textContent = isPlaying ? '■' : '▶';
-    playBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (isPlaying) { stopJukeboxPlayback(); } else { playSong(i); }
-    });
+    var playPauseStopBtns = createPlayPauseStopButtons(isPlaying, isPlaying && currentPlayback.paused, function () { playSong(i); }, stopJukeboxPlayback);
 
     var seekBarTrack = document.createElement('div');
     seekBarTrack.style.cssText = "flex-shrink:0; width:70px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;" + (isPlaying ? " cursor:pointer;" : "");
@@ -250,7 +333,7 @@ function renderJukeboxList() {
 
     row.appendChild(noEl);
     row.appendChild(title);
-    row.appendChild(playBtn);
+    row.appendChild(playPauseStopBtns);
     row.appendChild(seekBarTrack);
     row.appendChild(delBtn);
     list.appendChild(row);
@@ -262,9 +345,35 @@ function stopJukeboxPlayback() {
   currentPlayback.timeouts.forEach(function (t) { clearTimeout(t); });
   currentPlayback.timeouts = [];
   currentPlayback.playing = false;
+  currentPlayback.paused = false;
   stopAllNotes(); // 再生中の音をすべて止める
   if (bonusAudioEl) { bonusAudioEl.pause(); bonusAudioEl.currentTime = 0; }
   activeSeekFillEl = null;
+  renderJukeboxList();
+}
+
+// 再生中の曲を一時停止する(位置は保持したまま音だけ止める)
+function pausePlayback() {
+  if (!currentPlayback.playing || currentPlayback.paused) return;
+  currentPlayback.paused = true;
+  if (currentPlayback.index === 'bonus') {
+    if (bonusAudioEl) bonusAudioEl.pause();
+  } else {
+    playbackState.frozenElapsedMs = getElapsedMs();
+    stopAllNotes();
+  }
+  renderJukeboxList();
+}
+
+// 一時停止していた曲を、止めた位置から再開する
+function resumePlayback() {
+  if (!currentPlayback.playing || !currentPlayback.paused) return;
+  currentPlayback.paused = false;
+  if (currentPlayback.index === 'bonus') {
+    if (bonusAudioEl) bonusAudioEl.play().catch(function (err) { console.error('resume failed:', err); });
+  } else if (playbackState.ctx) {
+    playbackState.startCtxTime = playbackState.ctx.currentTime - playbackState.frozenElapsedMs / 1000;
+  }
   renderJukeboxList();
 }
 
@@ -279,6 +388,7 @@ function playBonusTrack() {
   }
   currentPlayback.playing = true;
   currentPlayback.index = 'bonus';
+  currentPlayback.paused = false;
   renderJukeboxList();
   bonusAudioEl.currentTime = 0;
   bonusAudioEl.play().catch(function (err) { console.error('bonus track play failed:', err); });
@@ -296,6 +406,7 @@ function playSong(index) {
 
   currentPlayback.playing = true;
   currentPlayback.index = index;
+  currentPlayback.paused = false;
   renderJukeboxList();
 
   loadPianoSamples().then(function () {
@@ -320,7 +431,7 @@ function playSong(index) {
 // 未来のタイムスタンプでまとめて予約するのではなく、一定間隔(20ms)で「今の再生位置」を
 // チェックし、その瞬間が来た音符だけを都度playNoteで鳴らす。シーク(位置移動)にも対応する。
 function schedulerTick() {
-  if (!currentPlayback.playing || playbackState.seeking) return;
+  if (!currentPlayback.playing || playbackState.seeking || currentPlayback.paused) return;
   var elapsedMs = getElapsedMs();
   var notes = playbackState.notes;
   while (playbackState.nextIndex < notes.length && notes[playbackState.nextIndex].time <= elapsedMs) {
