@@ -134,7 +134,8 @@ function seekTo(newElapsedMs) {
 // 曲名を長押し(スマホ)・クリック(PC)で全文表示する。
 // スマホ：長押しで開き、指を離しても表示されたまま。もう一度タップで閉じる。
 // PC：クリック＝タップと同じ扱いで、即座に開閉をトグルする。
-function attachTitleExpand(titleEl, fullName) {
+// 曲名を長押し(スマホ)・クリック(PC)で全文表示する。Studio側でも共有して使う。
+export function attachTitleExpand(titleEl, fullName) {
   var expanded = false;
   var longPressTimer = null;
   var longPressTriggered = false;
@@ -145,13 +146,11 @@ function attachTitleExpand(titleEl, fullName) {
   function expand() {
     if (expanded) return;
     expanded = true;
-    titleEl.style.position = 'absolute';
-    titleEl.style.left = '0';
-    titleEl.style.top = '50%';
-    titleEl.style.transform = 'translateY(-50%)';
+    titleEl.style.overflow = 'visible';
     titleEl.style.zIndex = '6';
     titleEl.style.background = 'rgba(20,17,13,0.96)';
     titleEl.style.padding = '4px 8px';
+    titleEl.style.margin = '-4px -8px';
     titleEl.style.borderRadius = '4px';
     titleEl.style.whiteSpace = 'nowrap';
     titleEl.style.maxWidth = 'none';

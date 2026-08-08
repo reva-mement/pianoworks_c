@@ -3,7 +3,7 @@
 // 見た目確認用のダミーノーツを表示する段階で、実際のMIDI連動はまだ行っていない。
 
 import { getCurrentSkinId } from './skin.js';
-import { studioDB, fadeBgm } from './jukebox.js';
+import { studioDB, fadeBgm, attachTitleExpand } from './jukebox.js';
 import { playNote, getPianoCtx, loadPianoSamples, stopAllNotes } from './audio-engine.js';
 
 var LANES = 6;
@@ -345,6 +345,7 @@ function renderStudioSongList() {
       var title = document.createElement('div');
       title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
       title.textContent = entry.name;
+      attachTitleExpand(title, entry.name);
 
       var playBtn = document.createElement('div');
       playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
