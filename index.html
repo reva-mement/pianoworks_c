@@ -408,17 +408,6 @@
       </div>
     </div>
 
-    <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う -->
-    <div id="custom-alert-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px;">
-      <div style="background:rgba(20,17,13,0.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; max-width:320px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
-        <div id="custom-alert-message" style="font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; line-height:1.7; white-space:pre-line; margin-bottom:20px;"></div>
-        <div style="display:flex; justify-content:flex-end; gap:10px;">
-          <div id="custom-alert-cancel" style="font-family:'Yomogi', cursive; font-size:13px; color:#a99f8c; padding:6px 14px; cursor:pointer;">キャンセル</div>
-          <div id="custom-alert-ok" style="font-family:'Yomogi', cursive; font-size:13px; color:#efe4cf; padding:6px 16px; border:1px solid rgba(232,150,66,0.7); border-radius:6px; cursor:pointer;">OK</div>
-        </div>
-      </div>
-    </div>
-
     <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; flex-direction:column; z-index:20;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Jukebox</div>
@@ -441,6 +430,18 @@
   <div class="scene hidden" id="scene-studio-play">
     <div id="studio-close" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
     <div class="studio-playfield" id="studio-playfield"></div>
+  </div>
+
+  <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う。
+       どのscene(hidden切り替え)にも属させず、stage直下に置くことで、常に表示できるようにする -->
+  <div id="custom-alert-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px;">
+    <div style="background:rgba(20,17,13,0.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; max-width:320px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
+      <div id="custom-alert-message" style="font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; line-height:1.7; white-space:pre-line; margin-bottom:20px;"></div>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <div id="custom-alert-cancel" style="font-family:'Yomogi', cursive; font-size:13px; color:#a99f8c; padding:6px 14px; cursor:pointer;">キャンセル</div>
+        <div id="custom-alert-ok" style="font-family:'Yomogi', cursive; font-size:13px; color:#efe4cf; padding:6px 16px; border:1px solid rgba(232,150,66,0.7); border-radius:6px; cursor:pointer;">OK</div>
+      </div>
+    </div>
   </div>
 
   <svg width="0" height="0" style="position:absolute">
@@ -552,8 +553,10 @@
     e.stopPropagation();
     closeSettings();
   });
-  document.getElementById('settings-back-to-title').addEventListener('click', function(e){
+  document.getElementById('settings-back-to-title').addEventListener('click', async function(e){
     e.stopPropagation();
+    var confirmed = await window.showCustomConfirm('本当にタイトルに戻りますか？');
+    if (!confirmed) return;
     closeSettings();
     goToTitle();
   });
