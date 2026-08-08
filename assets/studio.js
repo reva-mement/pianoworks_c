@@ -4,11 +4,14 @@
 
 import { getCurrentSkinId } from './skin.js';
 import { studioDB, fadeBgm } from './jukebox.js';
+import { playNote, getPianoCtx, loadPianoSamples, stopAllNotes } from './audio-engine.js';
 
 var LANES = 6;
 var laneStates = [];
 var built = false;
 var loopStarted = false;
+var FALL_DURATION_MS = 2600; // ノーツが上端から鍵盤に届くまでの時間
+var MISS_GRACE_MS = 600;     // 鍵盤に到達してから、取りこぼしとして静かに消えるまでの猶予
 
 function buildPlayfield() {
   var playfield = document.getElementById('studio-playfield');
@@ -148,118 +151,6 @@ function buildPlayfield() {
     '<div class="studio-score-key-spacer"></div>';
   playfield.appendChild(scorePanel);
 
-  // 見た目確認用：ダミーのノーツ（気泡スキン）をいくつか降らせておく
-  var dummyNotes = [
-    { lane: 0, top: '10%' }, { lane: 1, top: '35%' }, { lane: 2, top: '55%' },
-    { lane: 3, top: '20%' }, { lane: 4, top: '70%' }, { lane: 5, top: '45%' },
-    { lane: 2, top: '15%' }, { lane: 4, top: '25%' },
-    { lane: 1, top: '60%', long: true }, { lane: 5, top: '10%', long: true }
-  ];
-
-  function driftMiniBubble(mini, noteHeight) {
-    function moveOnce() {
-      var dx = (Math.random() - 0.5) * 14;
-      var dy = (Math.random() - 0.5) * Math.min(14, noteHeight * 0.3);
-      mini.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
-      var nextDelay = 900 + Math.random() * 1800;
-      setTimeout(moveOnce, nextDelay);
-    }
-    setTimeout(moveOnce, Math.random() * 1000);
-  }
-
-  function popNote(note, area) {
-    if (note.classList.contains('popping')) return;
-    var rect = note.getBoundingClientRect();
-    var areaRect = area.getBoundingClientRect();
-    var cx = rect.left - areaRect.left + rect.width / 2;
-    var cy = rect.top - areaRect.top + rect.height / 2;
-
-    note.classList.add('popping');
-
-    var ring = document.createElement('div');
-    ring.className = 'studio-splash-ring';
-    var ringSize = Math.max(rect.width, rect.height) * 1.1;
-    ring.style.width = ringSize + 'px';
-    ring.style.height = ringSize + 'px';
-    ring.style.left = cx + 'px';
-    ring.style.top = cy + 'px';
-    ring.style.animation = 'studioSplashRing 0.5s ease-out forwards';
-    area.appendChild(ring);
-    ring.addEventListener('animationend', function () { ring.remove(); });
-
-    var dropletCount = 6 + Math.floor(Math.random() * 4);
-    for (var i = 0; i < dropletCount; i++) {
-      var d = document.createElement('div');
-      d.className = 'studio-droplet';
-      var dsize = 3 + Math.random() * 5;
-      d.style.width = dsize + 'px';
-      d.style.height = dsize + 'px';
-      d.style.left = (cx - dsize / 2) + 'px';
-      d.style.top = (cy - dsize / 2) + 'px';
-
-      var angle = (Math.random() * Math.PI) + Math.PI;
-      var dist = 18 + Math.random() * 30;
-      var dx = Math.cos(angle) * dist;
-      var dy = Math.sin(angle) * dist * 0.8;
-      d.style.setProperty('--dx', dx.toFixed(1) + 'px');
-      d.style.setProperty('--dy', dy.toFixed(1) + 'px');
-      var dur = 0.4 + Math.random() * 0.25;
-      d.style.animation = 'studioDropletBurst ' + dur.toFixed(2) + 's ease-out forwards';
-
-      area.appendChild(d);
-      (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(d);
-    }
-
-    note.addEventListener('animationend', function () { note.remove(); }, { once: true });
-  }
-
-  dummyNotes.forEach(function (n) {
-    var area = document.getElementById('studio-fall-' + n.lane);
-    var note = document.createElement('div');
-    note.className = 'studio-note';
-
-    var pitchNorm = n.lane / (LANES - 1);
-    var height = (28 + Math.random() * 34) * (1.15 - pitchNorm * 0.35);
-    if (n.long) { height *= 4.5; }
-    var inset = 6 + Math.random() * 6;
-    var areaHeight = area.clientHeight || 260;
-    var startY = (parseFloat(n.top) / 100) * areaHeight;
-    note.style.left = inset + 'px';
-    note.style.right = inset + 'px';
-    note.style.height = height + 'px';
-    note.style.top = startY + 'px';
-
-    var breatheDur = (3 + Math.random() * 1.4) * (1.25 - pitchNorm * 0.45);
-    var breatheDelay = -Math.random() * breatheDur;
-    note.style.animation = 'studioNoteBreathe ' + breatheDur.toFixed(2) + 's ease-in-out ' + breatheDelay.toFixed(2) + 's infinite';
-
-    var miniCount = 4;
-    for (var m = 0; m < miniCount; m++) {
-      var mini = document.createElement('div');
-      mini.className = (m === 0) ? 'studio-mini-bubble' : 'studio-mini-bubble-line';
-      var miniSize = Math.min(height, 26) * (0.35 + Math.random() * 0.35);
-      mini.style.width = miniSize + 'px';
-      mini.style.height = miniSize + 'px';
-      mini.style.left = (6 + Math.random() * 55) + '%';
-      mini.style.top = (Math.max(4, height * 0.15)) + (Math.random() * Math.max(4, height * 0.5)) + 'px';
-      note.appendChild(mini);
-      driftMiniBubble(mini, height);
-    }
-
-    area.appendChild(note);
-
-    laneStates[n.lane].notes.push({ el: note, y: startY, height: height, speed: 30 + Math.random() * 15, popped: false });
-
-    note.addEventListener('pointerdown', function (ev) {
-      ev.stopPropagation();
-      var record = laneStates[n.lane].notes.filter(function (r) { return r.el === note; })[0];
-      if (record && !record.popped) {
-        record.popped = true;
-        popNote(note, area);
-      }
-    });
-  });
-
   // ---- メインループ：ノーツの落下、泡の上昇、衝突判定 ----
   var lastFrameTime = null;
   function gameLoop(ts) {
@@ -282,8 +173,22 @@ function buildPlayfield() {
         record.y += record.speed * dt;
         if (record.y + record.height > areaHeight) {
           record.y = areaHeight - record.height;
+          if (record.missDeadline === null || record.missDeadline === undefined) {
+            record.missDeadline = performance.now() + MISS_GRACE_MS;
+          }
         }
         record.el.style.top = record.y + 'px';
+      });
+
+      // 取りこぼしたまま猶予時間を過ぎたノーツを、静かに片付ける
+      state.notes.forEach(function (record) {
+        if (record.popped) return;
+        if (record.missDeadline != null && performance.now() >= record.missDeadline) {
+          record.popped = true;
+          record.el.style.transition = 'opacity 0.3s ease-out';
+          record.el.style.opacity = '0';
+          (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 320); })(record.el);
+        }
       });
 
       state.bubbles.forEach(function (b) {
@@ -321,6 +226,65 @@ function buildPlayfield() {
     loopStarted = true;
     requestAnimationFrame(gameLoop);
   }
+}
+
+// 気泡内部の小さな泡を、ランダムな間隔でランダムな位置へふわっと動かし続ける
+function driftMiniBubble(mini, noteHeight) {
+  function moveOnce() {
+    var dx = (Math.random() - 0.5) * 14;
+    var dy = (Math.random() - 0.5) * Math.min(14, noteHeight * 0.3);
+    mini.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
+    var nextDelay = 900 + Math.random() * 1800;
+    setTimeout(moveOnce, nextDelay);
+  }
+  setTimeout(moveOnce, Math.random() * 1000);
+}
+
+// ノーツが弾ける演出(水しぶき)。タップで弾いた時・泡が当たった時、どちらからも呼ばれる
+function popNote(note, area) {
+  if (note.classList.contains('popping')) return;
+  var rect = note.getBoundingClientRect();
+  var areaRect = area.getBoundingClientRect();
+  var cx = rect.left - areaRect.left + rect.width / 2;
+  var cy = rect.top - areaRect.top + rect.height / 2;
+
+  note.classList.add('popping');
+
+  var ring = document.createElement('div');
+  ring.className = 'studio-splash-ring';
+  var ringSize = Math.max(rect.width, rect.height) * 1.1;
+  ring.style.width = ringSize + 'px';
+  ring.style.height = ringSize + 'px';
+  ring.style.left = cx + 'px';
+  ring.style.top = cy + 'px';
+  ring.style.animation = 'studioSplashRing 0.5s ease-out forwards';
+  area.appendChild(ring);
+  ring.addEventListener('animationend', function () { ring.remove(); });
+
+  var dropletCount = 6 + Math.floor(Math.random() * 4);
+  for (var i = 0; i < dropletCount; i++) {
+    var d = document.createElement('div');
+    d.className = 'studio-droplet';
+    var dsize = 3 + Math.random() * 5;
+    d.style.width = dsize + 'px';
+    d.style.height = dsize + 'px';
+    d.style.left = (cx - dsize / 2) + 'px';
+    d.style.top = (cy - dsize / 2) + 'px';
+
+    var angle = (Math.random() * Math.PI) + Math.PI;
+    var dist = 18 + Math.random() * 30;
+    var dx = Math.cos(angle) * dist;
+    var dy = Math.sin(angle) * dist * 0.8;
+    d.style.setProperty('--dx', dx.toFixed(1) + 'px');
+    d.style.setProperty('--dy', dy.toFixed(1) + 'px');
+    var dur = 0.4 + Math.random() * 0.25;
+    d.style.animation = 'studioDropletBurst ' + dur.toFixed(2) + 's ease-out forwards';
+
+    area.appendChild(d);
+    (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(d);
+  }
+
+  note.addEventListener('animationend', function () { note.remove(); }, { once: true });
 }
 
 // ---- Studio 曲一覧（デザインはJukeboxに準拠） ----
@@ -434,6 +398,184 @@ export function closeStudioList() {
 }
 
 // 曲一覧で再生ボタンを押した時に開く、実際のゲーム画面(現時点では水スキンのみ)
+// ---- 実際の曲データを使った再生 ----
+
+// 曲の中で最も使われている6半音の範囲を探す(この範囲の音だけをレーンに割り当てる。
+// 範囲外の音は、レーンに乗せず自動で鳴らすだけにする)
+function computeLaneWindow(songData) {
+  if (!songData || songData.length === 0) return 60;
+  var counts = {};
+  var minPitch = 200, maxPitch = 0;
+  songData.forEach(function (n) {
+    counts[n.pitch] = (counts[n.pitch] || 0) + 1;
+    if (n.pitch < minPitch) minPitch = n.pitch;
+    if (n.pitch > maxPitch) maxPitch = n.pitch;
+  });
+  var bestStart = minPitch;
+  var bestCount = -1;
+  for (var start = minPitch; start <= maxPitch - LANES + 1; start++) {
+    var c = 0;
+    for (var p = start; p < start + LANES; p++) c += counts[p] || 0;
+    if (c > bestCount) { bestCount = c; bestStart = start; }
+  }
+  return bestStart;
+}
+
+// 現在再生中の曲についての状態(再生停止時にすべてクリアする)
+var currentSong = {
+  ctx: null,
+  audioNotes: [],      // 全音符(音を鳴らす用。レーンの範囲外の音も含む)
+  chart: [],            // レーンに乗る音符だけ(見た目のノーツ用)
+  gainCompensation: 1,
+  audioIndex: 0,
+  chartIndex: 0,
+  startCtxTime: 0,
+  audioIntervalId: null,
+  chartIntervalId: null,
+  playing: false
+};
+
+function stopSongPlayback() {
+  currentSong.playing = false;
+  if (currentSong.audioIntervalId) { clearInterval(currentSong.audioIntervalId); currentSong.audioIntervalId = null; }
+  if (currentSong.chartIntervalId) { clearInterval(currentSong.chartIntervalId); currentSong.chartIntervalId = null; }
+  stopAllNotes();
+  // 残っているノーツ・泡を全部片付ける
+  laneStates.forEach(function (state, laneIndex) {
+    state.notes.forEach(function (record) { if (record.el && record.el.parentNode) record.el.remove(); });
+    state.bubbles.forEach(function (b) { if (b.el && b.el.parentNode) b.el.remove(); });
+    state.notes = [];
+    state.bubbles = [];
+  });
+}
+
+// 見た目のノーツを1つ生成し、上端から鍵盤へ向けて落とし始める
+function spawnRealNote(entry) {
+  var area = document.getElementById('studio-fall-' + entry.lane);
+  if (!area) return;
+  var note = document.createElement('div');
+  note.className = 'studio-note';
+
+  var pitchNorm = entry.lane / (LANES - 1);
+  var height = (28 + Math.random() * 10) * (1.15 - pitchNorm * 0.35);
+  var durSec = Math.max(0.05, (entry.duration || 250) / 1000);
+  if (durSec > 0.6) { height *= Math.min(4.5, 1 + durSec); } // 長い音符は縦長にする
+  var inset = 6 + Math.random() * 6;
+  note.style.left = inset + 'px';
+  note.style.right = inset + 'px';
+  note.style.height = height + 'px';
+  note.style.top = (-height) + 'px';
+
+  var breatheDur = (3 + Math.random() * 1.4) * (1.25 - pitchNorm * 0.45);
+  var breatheDelay = -Math.random() * breatheDur;
+  note.style.animation = 'studioNoteBreathe ' + breatheDur.toFixed(2) + 's ease-in-out ' + breatheDelay.toFixed(2) + 's infinite';
+
+  var miniCount = 4;
+  for (var m = 0; m < miniCount; m++) {
+    var mini = document.createElement('div');
+    mini.className = (m === 0) ? 'studio-mini-bubble' : 'studio-mini-bubble-line';
+    var miniSize = Math.min(height, 26) * (0.35 + Math.random() * 0.35);
+    mini.style.width = miniSize + 'px';
+    mini.style.height = miniSize + 'px';
+    mini.style.left = (6 + Math.random() * 55) + '%';
+    mini.style.top = (Math.max(4, height * 0.15)) + (Math.random() * Math.max(4, height * 0.5)) + 'px';
+    note.appendChild(mini);
+    driftMiniBubble(mini, height);
+  }
+
+  area.appendChild(note);
+
+  var areaHeight = area.clientHeight || 260;
+  var record = {
+    el: note,
+    y: -height,
+    height: height,
+    speed: areaHeight / (FALL_DURATION_MS / 1000),
+    popped: false,
+    missDeadline: null
+  };
+  laneStates[entry.lane].notes.push(record);
+
+  note.addEventListener('pointerdown', function (ev) {
+    ev.stopPropagation();
+    if (!record.popped) {
+      record.popped = true;
+      popNote(note, area);
+    }
+  });
+}
+
+// 20ms間隔で「今の再生位置」をチェックし、その瞬間の音符だけを鳴らす(音声・Jukeboxと同じ考え方)
+function startAudioScheduler() {
+  var ctx = currentSong.ctx;
+  function tick() {
+    if (!currentSong.playing) return;
+    var elapsedMs = (ctx.currentTime - currentSong.startCtxTime) * 1000;
+    var notes = currentSong.audioNotes;
+    while (currentSong.audioIndex < notes.length && notes[currentSong.audioIndex].time <= elapsedMs) {
+      var n = notes[currentSong.audioIndex];
+      var v = Math.max(1, Math.min(100, n.velocity * currentSong.gainCompensation));
+      playNote(n.pitch, v, n.duration);
+      currentSong.audioIndex++;
+    }
+    if (currentSong.audioIndex >= notes.length) {
+      clearInterval(currentSong.audioIntervalId);
+      currentSong.audioIntervalId = null;
+    }
+  }
+  currentSong.audioIntervalId = setInterval(tick, 20);
+  tick();
+}
+
+// 少し先(FALL_DURATION_MS分)になった見た目のノーツだけを、都度生成する
+function startChartScheduler() {
+  var ctx = currentSong.ctx;
+  function tick() {
+    if (!currentSong.playing) return;
+    var elapsedMs = (ctx.currentTime - currentSong.startCtxTime) * 1000;
+    var chart = currentSong.chart;
+    while (currentSong.chartIndex < chart.length && (chart[currentSong.chartIndex].time - FALL_DURATION_MS) <= elapsedMs) {
+      spawnRealNote(chart[currentSong.chartIndex]);
+      currentSong.chartIndex++;
+    }
+    if (currentSong.chartIndex >= chart.length) {
+      clearInterval(currentSong.chartIntervalId);
+      currentSong.chartIntervalId = null;
+    }
+  }
+  currentSong.chartIntervalId = setInterval(tick, 20);
+  tick();
+}
+
+// ③②①のカウントダウンを表示してから、コールバックを呼ぶ
+function runCountdown(onDone) {
+  var overlay = document.getElementById('studio-countdown');
+  var bubble = document.getElementById('studio-countdown-bubble');
+  var numberEl = document.getElementById('studio-countdown-number');
+  overlay.style.display = 'flex';
+
+  var counts = ['3', '2', '1'];
+  var i = 0;
+  function showNext() {
+    if (document.getElementById('scene-studio-play').classList.contains('hidden')) {
+      overlay.style.display = 'none'; // 途中で閉じられていたら、カウントダウンを打ち切る
+      return;
+    }
+    if (i >= counts.length) {
+      overlay.style.display = 'none';
+      onDone();
+      return;
+    }
+    numberEl.textContent = counts[i];
+    bubble.classList.remove('pulse');
+    void bubble.offsetWidth; // アニメーションを再始動させるためのリフロー
+    bubble.classList.add('pulse');
+    i++;
+    setTimeout(showNext, 800);
+  }
+  showNext();
+}
+
 export function openStudioPlay(songEntry) {
   // 現時点では水スキンのみ実装。将来的にはgetCurrentSkinId()の値でここを分岐する。
   var skinId = getCurrentSkinId();
@@ -443,9 +585,45 @@ export function openStudioPlay(songEntry) {
   }
   document.getElementById('scene-studio-list').classList.add('hidden');
   document.getElementById('scene-studio-play').classList.remove('hidden');
+
+  if (!songEntry || !songEntry.songData || songEntry.songData.length === 0) return;
+
+  var ctx = getPianoCtx();
+  if (ctx.state === 'suspended') { ctx.resume(); }
+
+  loadPianoSamples().then(function () {
+    var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
+    resumePromise.then(function () {
+      var windowStart = computeLaneWindow(songEntry.songData);
+      var chart = [];
+      songEntry.songData.forEach(function (n) {
+        var lane = n.pitch - windowStart;
+        if (lane >= 0 && lane < LANES) {
+          chart.push({ lane: lane, time: n.time, pitch: n.pitch, velocity: n.velocity, duration: n.duration });
+        }
+      });
+
+      currentSong.ctx = ctx;
+      currentSong.audioNotes = songEntry.songData;
+      currentSong.chart = chart;
+      currentSong.gainCompensation = songEntry.gainCompensation || 1;
+      currentSong.audioIndex = 0;
+      currentSong.chartIndex = 0;
+
+      runCountdown(function () {
+        if (document.getElementById('scene-studio-play').classList.contains('hidden')) return; // 待っている間に閉じられていたら何もしない
+        currentSong.startCtxTime = ctx.currentTime;
+        currentSong.playing = true;
+        startAudioScheduler();
+        startChartScheduler();
+      });
+    });
+  });
 }
 
 export function closeStudioPlay() {
+  stopSongPlayback();
+  document.getElementById('studio-countdown').style.display = 'none';
   document.getElementById('scene-studio-play').classList.add('hidden');
   document.getElementById('scene-studio-list').classList.remove('hidden');
   renderStudioSongList(); // 一覧に戻った時、最新の状態(削除等)に合わせて再描画
