@@ -325,10 +325,10 @@ function renderJukeboxList() {
     var delBtn = document.createElement('div');
     delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
     delBtn.textContent = '×';
-    delBtn.addEventListener('click', function (e) {
+    delBtn.addEventListener('click', async function (e) {
       e.stopPropagation();
       var target = library[i];
-      var confirmed = window.confirm('「' + (target ? target.name : 'この曲') + '」を削除します。本当によろしいですか？');
+      var confirmed = await window.showCustomConfirm('「' + (target ? target.name : 'この曲') + '」を削除します。本当によろしいですか？');
       if (!confirmed) return;
 
       if (isPlaying) stopJukeboxPlayback();
@@ -504,54 +504,71 @@ function handleMidiFile(file) {
       var rawFactor = TARGET_AVG_VELOCITY / Math.max(1, parsed.avgVelocity);
       var gainCompensation = Math.max(0.5, Math.min(2.0, rawFactor));
 
-      // 同じタイトルの曲が既にある場合、確認の上で「(2)」等を付けて区別する
       var baseName = file.name.replace(/\.[^/.]+$/, '');
-      var finalName = baseName;
-      var existingNames = library.map(function (e) { return e.name; });
-      if (existingNames.indexOf(baseName) !== -1) {
-        var suggestedName = findAvailableSongName(baseName, existingNames);
-        var confirmed = window.confirm(
-          'Studio(Jukebox)に収録した曲に、同名の曲「' + baseName + '」が既にあります。\n' +
-          '「' + suggestedName + '」として保存しますか？'
+
+      // ---- Jukebox側の重複チェック(独立管理のため、Studio側とは別に判定する) ----
+      var jukeboxExistingNames = library.map(function (e) { return e.name; });
+      var jukeboxFinalName = baseName;
+      if (jukeboxExistingNames.indexOf(baseName) !== -1) {
+        var suggestedJukebox = findAvailableSongName(baseName, jukeboxExistingNames);
+        var confirmedJukebox = await window.showCustomConfirm(
+          'Jukeboxに収録した曲に、同名の曲「' + baseName + '」が既にあります。\n' +
+          '「' + suggestedJukebox + '」として保存しますか？'
         );
-        if (!confirmed) {
-          showImportStatus('取り込みをキャンセルしました', true);
-          return;
-        }
-        finalName = suggestedName;
+        jukeboxFinalName = confirmedJukebox ? suggestedJukebox : null; // nullはこちらへの保存を見送る印
       }
 
-      var entry = {
-        name: finalName,
-        songData: parsed.notes,
-        durationMs: parsed.durationMs,
-        gainCompensation: gainCompensation,
-        scoreHistory: []
-      };
+      // ---- Studio側の重複チェック(独立管理のため、Jukebox側とは別に判定する) ----
+      var studioSongsNow = await studioDB.getAllSongs().catch(function () { return []; });
+      var studioExistingNames = studioSongsNow.map(function (e) { return e.name; });
+      var studioFinalName = baseName;
+      if (studioExistingNames.indexOf(baseName) !== -1) {
+        var suggestedStudio = findAvailableSongName(baseName, studioExistingNames);
+        var confirmedStudio = await window.showCustomConfirm(
+          'Studioに収録した曲に、同名の曲「' + baseName + '」が既にあります。\n' +
+          '「' + suggestedStudio + '」として保存しますか？'
+        );
+        studioFinalName = confirmedStudio ? suggestedStudio : null;
+      }
+
+      if (jukeboxFinalName === null && studioFinalName === null) {
+        showImportStatus('取り込みをキャンセルしました', true);
+        return;
+      }
 
       // JukeboxとStudioは別管理(別レコード)にするため、それぞれに独立した複製を保存する。
-      // 片方を削除してももう片方には影響しない。
-      var studioEntry = {
-        name: entry.name,
-        songData: entry.songData,
-        durationMs: entry.durationMs,
-        gainCompensation: entry.gainCompensation,
-        scoreHistory: []
-      };
+      // 片方を削除してももう片方には影響しない。名前が異なる結果になることもある。
+      if (jukeboxFinalName !== null) {
+        var entry = {
+          name: jukeboxFinalName,
+          songData: parsed.notes,
+          durationMs: parsed.durationMs,
+          gainCompensation: gainCompensation,
+          scoreHistory: []
+        };
+        jukeboxDB.saveSong(entry).then(function (newId) {
+          entry.id = newId;
+          library.push(entry);
+          renderJukeboxList();
+        }).catch(function (err) {
+          console.error('save failed(jukebox):', err);
+          library.push(entry);
+          renderJukeboxList();
+        });
+      }
 
-      jukeboxDB.saveSong(entry).then(function (newId) {
-        entry.id = newId;
-        library.push(entry);
-        renderJukeboxList();
-      }).catch(function (err) {
-        console.error('save failed(jukebox):', err);
-        library.push(entry);
-        renderJukeboxList();
-      });
-
-      studioDB.saveSong(studioEntry).catch(function (err) {
-        console.error('save failed(studio):', err);
-      });
+      if (studioFinalName !== null) {
+        var studioEntry = {
+          name: studioFinalName,
+          songData: parsed.notes,
+          durationMs: parsed.durationMs,
+          gainCompensation: gainCompensation,
+          scoreHistory: []
+        };
+        studioDB.saveSong(studioEntry).catch(function (err) {
+          console.error('save failed(studio):', err);
+        });
+      }
 
       console.log('MIDI parsed:', file.name, parsed.notes.length, 'notes');
 

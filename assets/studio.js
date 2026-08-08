@@ -396,9 +396,9 @@ function renderStudioSongList() {
       var delBtn = document.createElement('div');
       delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
       delBtn.textContent = '×';
-      delBtn.addEventListener('click', function (e) {
+      delBtn.addEventListener('click', async function (e) {
         e.stopPropagation();
-        var confirmed = window.confirm('「' + entry.name + '」を削除します。本当によろしいですか？');
+        var confirmed = await window.showCustomConfirm('「' + entry.name + '」を削除します。本当によろしいですか？');
         if (!confirmed) return;
         studioDB.deleteSong(entry.id).then(function () {
           renderStudioSongList();
