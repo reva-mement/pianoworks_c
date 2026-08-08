@@ -533,6 +533,10 @@ function renderStudioSongList() {
       var row = document.createElement('div');
       row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid rgba(232,150,66,0.4);";
 
+      var noEl = document.createElement('div');
+      noEl.style.cssText = "font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; width:20px; flex-shrink:0;";
+      noEl.textContent = (i + 1);
+
       var title = document.createElement('div');
       title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
       title.textContent = entry.name;
@@ -566,6 +570,7 @@ function renderStudioSongList() {
         }).catch(function (err) { console.error('delete failed:', err); });
       });
 
+      row.appendChild(noEl);
       row.appendChild(title);
       row.appendChild(playBtn);
       row.appendChild(detailBtn);
@@ -1053,9 +1058,19 @@ export function closeStudioPlay() {
 function openStudioDetail(entry) {
   document.getElementById('studio-detail-title').textContent = entry.name;
   document.getElementById('studio-detail-maxscore').textContent = entry.maxScore || 0;
-  document.getElementById('studio-detail-overlay').style.display = 'flex';
+  var overlay = document.getElementById('studio-detail-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { overlay.style.opacity = '1'; });
+  });
   var canvas = document.getElementById('studio-detail-canvas');
   requestAnimationFrame(function () { drawSparkline(canvas, entry.scoreHistory); });
+}
+
+function closeStudioDetail() {
+  var overlay = document.getElementById('studio-detail-overlay');
+  overlay.style.opacity = '0';
+  setTimeout(function () { overlay.style.display = 'none'; }, 350);
 }
 
 export function initStudio() {
@@ -1077,7 +1092,7 @@ export function initStudio() {
   if (detailCloseBtn) {
     detailCloseBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      document.getElementById('studio-detail-overlay').style.display = 'none';
+      closeStudioDetail();
     });
   }
   // studio-closeボタンは廃止。closeStudioPlay()自体は他の経路から呼べるよう残す
