@@ -16,6 +16,7 @@ var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
 var JUDGE_LINE_OFFSET = 15;  // 鍵盤上端から判定ラインまでの距離(px)
 var HIT_WINDOW_PX = 40;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める
 var JUST_WINDOW_PX = 12;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)
+var HOLD_THRESHOLD_MS = 350; // これより長い音符は「押しっぱなし」が必要なホールドノーツとして扱う
 
 // ノーツの現在位置が、判定ラインからどれだけ離れているかで判定する。
 // 'just'=ジャストタイミング、'hit'=普通のヒット、null=まだ早い/もう遅い(判定なし)
@@ -27,6 +28,55 @@ function judgeNoteHit(record, areaHeight) {
   if (dist <= HIT_WINDOW_PX) return 'hit';
   return null;
 }
+
+// ホールドノーツの上端(=音の終わり)が判定ラインを過ぎたかどうか。押しっぱなしを最後までできたかの判定に使う
+function isHoldFullyPassed(record, areaHeight) {
+  var lineY = areaHeight - JUDGE_LINE_OFFSET;
+  return record.y >= lineY;
+}
+
+// ノーツへのヒットが発生した瞬間の共通処理(タップ・泡衝突・鍵盤直接判定、すべてここを通す)
+function attemptHit(record, area, judgment) {
+  if (record.popped || record.holding) return false;
+  if (record.isHold) {
+    // ホールドノーツ：即座には消さず、「押しっぱなしで正しく保持している」状態にする
+    record.holding = true;
+    record.el.classList.add('holding');
+    playHitFeedback(record, judgment);
+    if (judgment === 'just') {
+      var rect = record.el.getBoundingClientRect();
+      var areaRect = area.getBoundingClientRect();
+      var popup = document.createElement('div');
+      popup.className = 'studio-just-popup';
+      popup.textContent = 'JUST';
+      popup.style.left = (rect.left - areaRect.left + rect.width / 2) + 'px';
+      popup.style.top = (rect.top - areaRect.top + rect.height / 2) + 'px';
+      area.appendChild(popup);
+      popup.addEventListener('animationend', function () { popup.remove(); });
+    }
+  } else {
+    record.popped = true;
+    popNote(record.el, area, record, judgment);
+  }
+  return true;
+}
+
+// ホールドノーツを最後まで正しく保持できた時(上端が判定ラインを通過した瞬間)
+function finishHold(record, area) {
+  record.popped = true;
+  addScore(SCORE_PER_HIT); // 最後まで保持できたボーナス(音・初動のスコアは既にattemptHitで加算済み)
+  popNote(record.el, area, record, null, { skipAudioScore: true });
+}
+
+// ホールドノーツを最後まで保持できず、途中で指を離してしまった時(残りは得点にならない)
+function abortHold(record) {
+  record.popped = true;
+  record.el.style.transition = 'opacity 0.25s ease-out';
+  record.el.style.opacity = '0';
+  (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 260); })(record.el);
+}
+
+
 
 function buildPlayfield() {
   var playfield = document.getElementById('studio-playfield');
@@ -143,11 +193,10 @@ function buildPlayfield() {
     var state = laneStates[laneIndex];
     for (var i = 0; i < state.notes.length; i++) {
       var record = state.notes[i];
-      if (record.popped) continue;
+      if (record.popped || record.holding) continue;
       var judgment = judgeNoteHit(record, areaHeight);
       if (judgment) {
-        record.popped = true;
-        popNote(record.el, fallArea, record, judgment);
+        attemptHit(record, fallArea, judgment);
         return;
       }
     }
@@ -207,10 +256,19 @@ function buildPlayfield() {
       state.notes.forEach(function (record) {
         if (record.popped) return;
         record.y += record.speed * dt;
-        if (record.y + record.height > areaHeight) {
-          record.y = areaHeight - record.height;
-          if (record.missDeadline === null || record.missDeadline === undefined) {
-            record.missDeadline = performance.now() + MISS_GRACE_MS;
+        if (record.holding) {
+          // ホールド中：上端(音の終わり)が判定ラインを過ぎたら完了、鍵盤が離されていたら中断する
+          if (isHoldFullyPassed(record, areaHeight)) {
+            finishHold(record, fallArea);
+          } else if (!(activeKey && parseInt(activeKey.dataset.lane, 10) === laneIndex)) {
+            abortHold(record);
+          }
+        } else {
+          if (record.y + record.height > areaHeight) {
+            record.y = areaHeight - record.height;
+            if (record.missDeadline === null || record.missDeadline === undefined) {
+              record.missDeadline = performance.now() + MISS_GRACE_MS;
+            }
           }
         }
         record.el.style.transform = 'translateY(' + record.y + 'px)';
@@ -236,13 +294,12 @@ function buildPlayfield() {
         if (b.consumed) return;
         var bubbleTopY = areaHeight - b.risen - b.size;
         state.notes.forEach(function (record) {
-          if (record.popped) return;
+          if (record.popped || record.holding) return;
           if (bubbleTopY <= record.y + record.height && bubbleTopY + b.size >= record.y) {
             var judgment = judgeNoteHit(record, areaHeight);
             if (judgment) {
-              record.popped = true;
               b.consumed = true;
-              popNote(record.el, fallArea, record, judgment);
+              attemptHit(record, fallArea, judgment);
             }
             // 判定ラインから離れすぎている場合は、泡が触れても弾けない(すり抜ける)
           }
@@ -281,13 +338,20 @@ function driftMiniBubble(mini, noteHeight) {
 }
 
 // ノーツが弾ける演出(水しぶき)。タップで弾いた時・泡が当たった時、どちらからも呼ばれる
-function popNote(note, area, record, judgment) {
+// 音を鳴らし、スコアを加算する(二重に鳴らないよう、ヒット処理全体でここ1箇所だけが担当する)
+function playHitFeedback(record, judgment) {
+  if (!record || record.pitch == null) return;
+  var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
+  playNote(record.pitch, v, record.duration);
+  console.log('[hit] pitch=' + record.pitch + ' judgment=' + judgment);
+  addScore(judgment === 'just' ? SCORE_PER_HIT * 2 : SCORE_PER_HIT);
+}
+
+function popNote(note, area, record, judgment, opts) {
   if (note.classList.contains('popping')) return;
-  if (record && record.pitch != null) {
-    var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
-    playNote(record.pitch, v, record.duration); // 音を鳴らすのはここ1箇所だけ(二重に鳴るのを防ぐ)
-    console.log('[hit] pitch=' + record.pitch + ' judgment=' + judgment);
-    addScore(judgment === 'just' ? SCORE_PER_HIT * 2 : SCORE_PER_HIT);
+  var skipAudioScore = opts && opts.skipAudioScore; // ホールド完了時など、既に音・スコアを処理済みの場合はtrue
+  if (!skipAudioScore) {
+    playHitFeedback(record, judgment);
   }
   var rect = note.getBoundingClientRect();
   var areaRect = area.getBoundingClientRect();
@@ -730,6 +794,9 @@ function spawnRealNote(entry) {
     height: height,
     speed: areaHeight / (FALL_DURATION_MS / 1000),
     popped: false,
+    holding: false,
+    isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
+    lane: entry.lane,
     missDeadline: null,
     pitch: entry.pitch,
     velocity: entry.velocity,
@@ -740,11 +807,10 @@ function spawnRealNote(entry) {
 
   note.addEventListener('pointerdown', function (ev) {
     ev.stopPropagation();
-    if (record.popped) return;
+    if (record.popped || record.holding) return;
     var judgment = judgeNoteHit(record, areaHeight);
     if (judgment) {
-      record.popped = true;
-      popNote(note, area, record, judgment);
+      attemptHit(record, area, judgment);
     }
     // 判定ラインから離れすぎている場合は、タップしても何も起きない(タイミングを合わせる必要がある)
   });
