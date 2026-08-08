@@ -110,7 +110,7 @@ export function playNote(pitch, velocity, durationMs) {
   var now = ctx.currentTime;
 
   // 同じ音程が既に鳴っていたら、まず素早く止める(連打時のノイズ対策。PC版と同じ)
-  stopNote(pitch, 0.015);
+  stopNote(pitch, 0.03);
 
   var layer = velocityToLayer(velocity);
   var sample = nearestSample(pitch);
@@ -139,7 +139,10 @@ export function playNote(pitch, velocity, durationMs) {
   var durSec = Math.max(0.05, (durationMs || 400) / 1000);
   var releaseSec = 0.2;
   gainNode.gain.setTargetAtTime(0.0001, now + durSec, releaseSec / 3);
-  try { src.stop(now + durSec + releaseSec + 0.05); } catch (err) { /* 念のため */ }
+  // setTargetAtTimeは指数関数的に減衰するため、releaseSecちょうどでは完全に0にならない。
+  // 波形の途中でバッファを打ち切るとクリックノイズ(「じじ」というノイズ)の原因になるため、
+  // 十分に減衰しきるまで(時定数の6倍程度)余裕を持ってから止める
+  try { src.stop(now + durSec + releaseSec * 2.4); } catch (err) { /* 念のため */ }
 
   src.addEventListener('ended', function () {
     if (activeSources[pitch] && activeSources[pitch].src === src) delete activeSources[pitch];
@@ -163,10 +166,11 @@ export function stopNote(pitch, fadeSec) {
   delete activeSources[pitch];
 }
 
-// 再生中の音を、すべて即座に止める(「停止」ボタン用)
+// 再生中の音を、すべてすぐに止める(「停止」ボタン用)。
+// 波形の途中でいきなり切ると「じじ」というクリックノイズが出るため、ごく短いフェードは必ず挟む
 export function stopAllNotes() {
   Object.keys(activeSources).forEach(function (pitch) {
-    try { activeSources[pitch].src.stop(); } catch (err) { /* 既に停止済みの場合は無視 */ }
+    stopNote(Number(pitch), 0.02);
   });
   activeSources = {};
 }
