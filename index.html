@@ -206,11 +206,17 @@
   }
   /* ノーマルスキン：PC版と同じ、塗りつぶしの長方形(角丸なし・輪郭の揺れなし) */
   #scene-studio-play .studio-note.skin-normal{
-    border-radius:0;
+    border-radius:10px;
     border:none;
     filter:none;
     animation:none;
-    box-shadow:0 1px 3px rgba(0,0,0,0.4);
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.18) 14%, rgba(255,255,255,0) 32%, rgba(0,0,0,0.1) 82%, rgba(0,0,0,0.32) 100%),
+      linear-gradient(90deg, rgba(0,0,0,0.18) 0%, rgba(255,255,255,0.12) 50%, rgba(0,0,0,0.18) 100%);
+    box-shadow:
+      inset 0 1px 2px rgba(255,255,255,0.65),
+      inset 0 -3px 5px rgba(0,0,0,0.4),
+      0 2px 5px rgba(0,0,0,0.5);
   }
   #scene-studio-play .studio-note.holding{
     box-shadow:0 0 14px 3px rgba(255,230,150,0.75);
@@ -411,6 +417,17 @@
     font-size:16px;
     color:#e8a24a;
     margin-top:2px;
+  }
+  #scene-studio-play .studio-abort-btn{
+    margin-top:26px;
+    font-family:'Yomogi', cursive;
+    font-size:12px;
+    letter-spacing:1px;
+    color:#a99f8c;
+    padding:6px 14px;
+    border:1px solid rgba(232,150,66,0.5);
+    border-radius:6px;
+    cursor:pointer;
   }
   #scene-studio-play .studio-score-key-spacer{
     height:208px;
