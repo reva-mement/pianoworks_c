@@ -37,15 +37,10 @@ function buildPlayfield() {
     playfield.appendChild(lane);
   }
 
-  // 装飾用の黒鍵（あたり判定なし）
+  // 装飾用の黒鍵は、曲の実際の音階が分かってから配置する(updateBlackKeys参照)
   var blackKeysLayer = document.createElement('div');
   blackKeysLayer.className = 'studio-black-keys-layer';
-  [0, 1, 3, 4].forEach(function (boundaryIndex) {
-    var bk = document.createElement('div');
-    bk.className = 'studio-black-key';
-    bk.style.left = ((boundaryIndex + 1) / LANES * 100) + '%';
-    blackKeysLayer.appendChild(bk);
-  });
+  blackKeysLayer.id = 'studio-black-keys-layer';
   document.getElementById('scene-studio-play').appendChild(blackKeysLayer);
 
   // ---- ベロシティ推定 ----
@@ -402,6 +397,24 @@ export function closeStudioList() {
 
 // 曲の中で最も使われている6半音の範囲を探す(この範囲の音だけをレーンに割り当てる。
 // 範囲外の音は、レーンに乗せず自動で鳴らすだけにする)
+// 実際のMIDIピッチをもとに、6レーンそれぞれが「黒鍵の音(♯/♭)」かどうかを判定し、
+// そのレーンの上に黒鍵の飾りを重ねる。曲によって黒鍵の並びが変わる。
+var SHARP_SEMITONES = { 1: true, 3: true, 6: true, 8: true, 10: true }; // C#,D#,F#,G#,A#
+function updateBlackKeys(windowStart) {
+  var layer = document.getElementById('studio-black-keys-layer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  for (var lane = 0; lane < LANES; lane++) {
+    var semitone = ((windowStart + lane) % 12 + 12) % 12;
+    if (!SHARP_SEMITONES[semitone]) continue;
+    var bk = document.createElement('div');
+    bk.className = 'studio-black-key';
+    // そのレーンの中央に来るよう配置する(レーンの境界ではなく、実際にその音のレーンの上)
+    bk.style.left = ((lane + 0.5) / LANES * 100) + '%';
+    layer.appendChild(bk);
+  }
+}
+
 function computeLaneWindow(songData) {
   if (!songData || songData.length === 0) return 60;
   var counts = {};
@@ -595,6 +608,7 @@ export function openStudioPlay(songEntry) {
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
       var windowStart = computeLaneWindow(songEntry.songData);
+      updateBlackKeys(windowStart);
       var chart = [];
       songEntry.songData.forEach(function (n) {
         var lane = n.pitch - windowStart;
