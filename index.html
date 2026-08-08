@@ -275,6 +275,15 @@
     0%{opacity:.35;}
     100%{opacity:0;}
   }
+  @keyframes studioCountdownPulse{
+    0%{transform:scale(0.6); opacity:0;}
+    30%{transform:scale(1.08); opacity:1;}
+    60%{transform:scale(1); opacity:1;}
+    100%{transform:scale(0.94); opacity:0;}
+  }
+  #studio-countdown-bubble.pulse{
+    animation:studioCountdownPulse 0.9s ease-out;
+  }
   #scene-studio-play .studio-black-keys-layer{
     position:absolute;
     left:0; right:14.2857%; bottom:89px;
@@ -430,6 +439,11 @@
   <div class="scene hidden" id="scene-studio-play">
     <div id="studio-close" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
     <div class="studio-playfield" id="studio-playfield"></div>
+    <div id="studio-countdown" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:14; pointer-events:none;">
+      <div id="studio-countdown-bubble" style="width:140px; height:140px; border-radius:50%; border:3px solid rgba(150,150,155,0.9); filter:url(#note-wobble); display:flex; align-items:center; justify-content:center; background:rgba(20,17,13,0.35);">
+        <div id="studio-countdown-number" style="font-family:'Yomogi', cursive; font-size:64px; color:#efe4cf;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う。
