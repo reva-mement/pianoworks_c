@@ -239,7 +239,7 @@ function renderJukeboxList() {
   bonusMark.textContent = '★';
 
   var bonusTitle = document.createElement('div');
-  bonusTitle.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex-shrink:0; width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+  bonusTitle.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
   bonusTitle.textContent = BONUS_TRACK.name;
   attachTitleExpand(bonusTitle, BONUS_TRACK.name);
 
@@ -273,7 +273,7 @@ function renderJukeboxList() {
     noEl.textContent = (i + 1);
 
     var title = document.createElement('div');
-    title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex-shrink:0; width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+    title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
     title.textContent = entry.name;
     attachTitleExpand(title, entry.name);
 
