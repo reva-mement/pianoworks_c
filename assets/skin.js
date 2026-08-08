@@ -2,6 +2,7 @@
 // ノーツのスキン選択一覧。デザイン(見た目)はJukeboxに準拠している。
 
 var SKINS = [
+  { id: 'normal', name: 'ノーマル', description: 'PC版と同じ、シンプルな塗りつぶしの長方形。白鍵は黄金色、黒鍵は紫色。', available: true },
   { id: 'water', name: '水（バブル）', description: '角丸の輪郭に、内側で揺れる小さな泡。青い泡が1つだけ紛れている。', available: true },
   { id: 'fire', name: '炎', available: false },
   { id: 'underwater', name: '水中', available: false },

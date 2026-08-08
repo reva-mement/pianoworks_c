@@ -249,39 +249,67 @@ function popNote(note, area, record) {
   var cy = rect.top - areaRect.top + rect.height / 2;
 
   note.classList.add('popping');
+  var skinId = getCurrentSkinId();
 
-  var ring = document.createElement('div');
-  ring.className = 'studio-splash-ring';
-  var ringSize = Math.max(rect.width, rect.height) * 1.1;
-  ring.style.width = ringSize + 'px';
-  ring.style.height = ringSize + 'px';
-  ring.style.left = cx + 'px';
-  ring.style.top = cy + 'px';
-  ring.style.animation = 'studioSplashRing 0.5s ease-out forwards';
-  area.appendChild(ring);
-  ring.addEventListener('animationend', function () { ring.remove(); });
+  if (skinId === 'normal') {
+    // ノーマルスキン：PC版と同じ、ランダムな虹色の小さな星がはじける演出
+    var starCount = 6 + Math.floor(Math.random() * 4);
+    for (var s = 0; s < starCount; s++) {
+      var star = document.createElement('div');
+      star.className = 'studio-droplet'; // 形はdropletを流用し、色だけ変える
+      var ssize = 4 + Math.random() * 3;
+      star.style.width = ssize + 'px';
+      star.style.height = ssize + 'px';
+      star.style.left = (cx - ssize / 2 + (Math.random() - 0.5) * rect.width) + 'px';
+      star.style.top = (cy - ssize / 2) + 'px';
+      star.style.background = 'hsl(' + Math.floor(Math.random() * 360) + ', 90%, 70%)';
+      star.style.boxShadow = 'none';
 
-  var dropletCount = 6 + Math.floor(Math.random() * 4);
-  for (var i = 0; i < dropletCount; i++) {
-    var d = document.createElement('div');
-    d.className = 'studio-droplet';
-    var dsize = 3 + Math.random() * 5;
-    d.style.width = dsize + 'px';
-    d.style.height = dsize + 'px';
-    d.style.left = (cx - dsize / 2) + 'px';
-    d.style.top = (cy - dsize / 2) + 'px';
+      var sAngle = Math.random() * Math.PI * 2;
+      var sDist = 14 + Math.random() * 22;
+      star.style.setProperty('--dx', (Math.cos(sAngle) * sDist).toFixed(1) + 'px');
+      star.style.setProperty('--dy', (Math.sin(sAngle) * sDist).toFixed(1) + 'px');
+      var sDur = 0.35 + Math.random() * 0.25;
+      star.style.animation = 'studioDropletBurst ' + sDur.toFixed(2) + 's ease-out forwards';
 
-    var angle = (Math.random() * Math.PI) + Math.PI;
-    var dist = 18 + Math.random() * 30;
-    var dx = Math.cos(angle) * dist;
-    var dy = Math.sin(angle) * dist * 0.8;
-    d.style.setProperty('--dx', dx.toFixed(1) + 'px');
-    d.style.setProperty('--dy', dy.toFixed(1) + 'px');
-    var dur = 0.4 + Math.random() * 0.25;
-    d.style.animation = 'studioDropletBurst ' + dur.toFixed(2) + 's ease-out forwards';
+      area.appendChild(star);
+      (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(star);
+    }
+  } else {
+    // 水スキン：波紋+水しぶき
+    var ring = document.createElement('div');
+    ring.className = 'studio-splash-ring';
+    var ringSize = Math.max(rect.width, rect.height) * 1.1;
+    ring.style.width = ringSize + 'px';
+    ring.style.height = ringSize + 'px';
+    ring.style.left = cx + 'px';
+    ring.style.top = cy + 'px';
+    ring.style.animation = 'studioSplashRing 0.5s ease-out forwards';
+    area.appendChild(ring);
+    ring.addEventListener('animationend', function () { ring.remove(); });
 
-    area.appendChild(d);
-    (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(d);
+    var dropletCount = 6 + Math.floor(Math.random() * 4);
+    for (var i = 0; i < dropletCount; i++) {
+      var d = document.createElement('div');
+      d.className = 'studio-droplet';
+      var dsize = 3 + Math.random() * 5;
+      d.style.width = dsize + 'px';
+      d.style.height = dsize + 'px';
+      d.style.left = (cx - dsize / 2) + 'px';
+      d.style.top = (cy - dsize / 2) + 'px';
+
+      var angle = (Math.random() * Math.PI) + Math.PI;
+      var dist = 18 + Math.random() * 30;
+      var dx = Math.cos(angle) * dist;
+      var dy = Math.sin(angle) * dist * 0.8;
+      d.style.setProperty('--dx', dx.toFixed(1) + 'px');
+      d.style.setProperty('--dy', dy.toFixed(1) + 'px');
+      var dur = 0.4 + Math.random() * 0.25;
+      d.style.animation = 'studioDropletBurst ' + dur.toFixed(2) + 's ease-out forwards';
+
+      area.appendChild(d);
+      (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(d);
+    }
   }
 
   note.addEventListener('animationend', function () { note.remove(); }, { once: true });
@@ -493,8 +521,8 @@ function stopSongPlayback() {
 function spawnRealNote(entry) {
   var area = document.getElementById('studio-fall-' + entry.lane);
   if (!area) return;
+  var skinId = getCurrentSkinId();
   var note = document.createElement('div');
-  note.className = 'studio-note';
 
   var pitchNorm = entry.lane / (LANES - 1);
   var height = (28 + Math.random() * 10) * (1.15 - pitchNorm * 0.35);
@@ -506,21 +534,33 @@ function spawnRealNote(entry) {
   note.style.height = height + 'px';
   note.style.top = (-height) + 'px';
 
-  var breatheDur = (3 + Math.random() * 1.4) * (1.25 - pitchNorm * 0.45);
-  var breatheDelay = -Math.random() * breatheDur;
-  note.style.animation = 'studioNoteBreathe ' + breatheDur.toFixed(2) + 's ease-in-out ' + breatheDelay.toFixed(2) + 's infinite';
+  if (skinId === 'normal') {
+    // ノーマルスキン：PC版と同じ、塗りつぶしの長方形。白鍵は黄金色、黒鍵は紫色
+    note.className = 'studio-note skin-normal';
+    var semitone = ((entry.pitch % 12) + 12) % 12;
+    var isBlackKey = !!SHARP_SEMITONES[semitone];
+    note.style.background = isBlackKey
+      ? 'hsl(' + (260 + Math.random() * 20) + ', 70%, 60%)'
+      : 'hsl(' + (40 + Math.random() * 20) + ', 80%, 65%)';
+  } else {
+    // 水スキン：輪郭+内部の気泡
+    note.className = 'studio-note';
+    var breatheDur = (3 + Math.random() * 1.4) * (1.25 - pitchNorm * 0.45);
+    var breatheDelay = -Math.random() * breatheDur;
+    note.style.animation = 'studioNoteBreathe ' + breatheDur.toFixed(2) + 's ease-in-out ' + breatheDelay.toFixed(2) + 's infinite';
 
-  var miniCount = 4;
-  for (var m = 0; m < miniCount; m++) {
-    var mini = document.createElement('div');
-    mini.className = (m === 0) ? 'studio-mini-bubble' : 'studio-mini-bubble-line';
-    var miniSize = Math.min(height, 26) * (0.35 + Math.random() * 0.35);
-    mini.style.width = miniSize + 'px';
-    mini.style.height = miniSize + 'px';
-    mini.style.left = (6 + Math.random() * 55) + '%';
-    mini.style.top = (Math.max(4, height * 0.15)) + (Math.random() * Math.max(4, height * 0.5)) + 'px';
-    note.appendChild(mini);
-    driftMiniBubble(mini, height);
+    var miniCount = 4;
+    for (var m = 0; m < miniCount; m++) {
+      var mini = document.createElement('div');
+      mini.className = (m === 0) ? 'studio-mini-bubble' : 'studio-mini-bubble-line';
+      var miniSize = Math.min(height, 26) * (0.35 + Math.random() * 0.35);
+      mini.style.width = miniSize + 'px';
+      mini.style.height = miniSize + 'px';
+      mini.style.left = (6 + Math.random() * 55) + '%';
+      mini.style.top = (Math.max(4, height * 0.15)) + (Math.random() * Math.max(4, height * 0.5)) + 'px';
+      note.appendChild(mini);
+      driftMiniBubble(mini, height);
+    }
   }
 
   area.appendChild(note);
@@ -599,7 +639,8 @@ function runCountdown(onDone) {
   var numberEl = document.getElementById('studio-countdown-number');
   overlay.style.display = 'flex';
 
-  var counts = ['3', '2', '1'];
+  var isNormal = getCurrentSkinId() === 'normal';
+  var counts = isNormal ? ['⑤', '④', '③', '②', '①', '⓪'] : ['3', '2', '1']; // ノーマルはPC版と同じ表記
   var i = 0;
   function showNext() {
     if (document.getElementById('scene-studio-play').classList.contains('hidden')) {
