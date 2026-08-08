@@ -469,6 +469,13 @@ var SHARP_SEMITONES = { 1: true, 3: true, 6: true, 8: true, 10: true }; // C#,D#
 function updateBlackKeys(windowStart) {
   var layer = document.getElementById('studio-black-keys-layer');
   if (!layer) return;
+
+  var whiteKeys = Array.prototype.slice.call(document.querySelectorAll('.studio-key'));
+
+  // 白鍵・黒鍵を一旦透明にしてから、新しい黒鍵の配置に差し替え、同時にフェードインさせる
+  layer.style.opacity = '0';
+  whiteKeys.forEach(function (k) { k.style.opacity = '0'; });
+
   layer.innerHTML = '';
   for (var lane = 0; lane < LANES; lane++) {
     var semitone = ((windowStart + lane) % 12 + 12) % 12;
@@ -479,6 +486,13 @@ function updateBlackKeys(windowStart) {
     bk.style.left = ((lane + 0.5) / LANES * 100) + '%';
     layer.appendChild(bk);
   }
+
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { // 1フレームだけだとopacity:0が反映されないブラウザがあるため、2フレーム待つ
+      layer.style.opacity = '1';
+      whiteKeys.forEach(function (k) { k.style.opacity = '1'; });
+    });
+  });
 }
 
 // 同じ瞬間(ごく近い時間)に複数の音が重なっている場合、一番高い音を「主旋律の候補」とみなす。
@@ -763,7 +777,9 @@ function runCountdown(onDone) {
 
   var isNormal = getCurrentSkinId() === 'normal';
   bubble.style.filter = isNormal ? 'none' : 'url(#note-wobble)';
-  bubble.style.borderColor = isNormal ? 'rgba(232,150,66,0.9)' : 'rgba(150,150,155,0.9)';
+  var countdownColor = isNormal ? 'rgba(232,150,66,0.9)' : 'rgba(150,150,155,0.9)';
+  bubble.style.borderColor = countdownColor;
+  numberEl.style.color = countdownColor;
   var counts = isNormal ? ['5', '4', '3', '2', '1', '0'] : ['3', '2', '1']; // 丸数字のUnicode文字はフォントによって欠けるため、プレーンな数字+CSSの円にする
   var i = 0;
   function showNext() {
