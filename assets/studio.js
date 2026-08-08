@@ -43,6 +43,19 @@ function buildPlayfield() {
   blackKeysLayer.id = 'studio-black-keys-layer';
   document.getElementById('scene-studio-play').appendChild(blackKeysLayer);
 
+  // 当たり判定の目安ライン(PC版と同じ配置：鍵盤の上端を基準に30px・75px・120px)
+  var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
+  [
+    { offset: 30, dashed: false },
+    { offset: 75, dashed: true },
+    { offset: 120, dashed: false }
+  ].forEach(function (line) {
+    var el = document.createElement('div');
+    el.className = line.dashed ? 'studio-hitzone-line-dashed' : 'studio-hitzone-line';
+    el.style.bottom = (KEYS_TOTAL_HEIGHT + line.offset) + 'px';
+    document.getElementById('scene-studio-play').appendChild(el);
+  });
+
   // ---- ベロシティ推定 ----
   var DEFAULT_VELOCITY = 90;
   function estimateVelocity(e) {
@@ -117,7 +130,7 @@ function buildPlayfield() {
   }
 
   // 鍵盤付近(ヒット判定圏内)にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)
-  var HIT_ZONE_PX = 40;
+  var HIT_ZONE_PX = 120; // 見た目のガイド線(30px〜120px)の外枠に合わせる
   function tryHitNearestNote(fallArea, laneIndex) {
     var areaHeight = fallArea.clientHeight || 260;
     var state = laneStates[laneIndex];
@@ -192,7 +205,7 @@ function buildPlayfield() {
             record.missDeadline = performance.now() + MISS_GRACE_MS;
           }
         }
-        record.el.style.top = record.y + 'px';
+        record.el.style.transform = 'translateY(' + record.y + 'px)';
       });
 
       // 取りこぼしたまま猶予時間を過ぎたノーツを、静かに片付ける
@@ -262,6 +275,7 @@ function popNote(note, area, record) {
     var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
     playNote(record.pitch, v, record.duration); // 音を鳴らすのはここ1箇所だけ(二重に鳴るのを防ぐ)
     console.log('[hit] pitch=' + record.pitch);
+    addScore(SCORE_PER_HIT);
   }
   var rect = note.getBoundingClientRect();
   var areaRect = area.getBoundingClientRect();
@@ -561,8 +575,54 @@ var currentSong = {
   startCtxTime: 0,
   audioIntervalId: null,
   chartIntervalId: null,
-  playing: false
+  playing: false,
+  score: 0,
+  lastFishMilestone: 0
 };
+
+var SCORE_PER_HIT = 100;
+var FISH_MILESTONE = 1000; // このスコアを超えるたびに、魚を1匹泳がせる
+
+function addScore(points) {
+  currentSong.score += points;
+  var el = document.getElementById('studioScoreValue');
+  if (el) el.textContent = currentSong.score;
+
+  if (getCurrentSkinId() === 'water') {
+    var milestone = Math.floor(currentSong.score / FISH_MILESTONE);
+    if (milestone > currentSong.lastFishMilestone) {
+      currentSong.lastFishMilestone = milestone;
+      spawnBackgroundFish();
+    }
+  }
+}
+
+// スコアが伸びると、背景に魚を1匹泳がせる(水スキン限定。ノーツの邪魔にならないよう最背面に配置)
+function spawnBackgroundFish() {
+  var playfield = document.getElementById('studio-playfield');
+  if (!playfield) return;
+  var fish = document.createElement('div');
+  fish.className = 'studio-bg-fish';
+  var fromLeft = Math.random() < 0.5;
+  if (!fromLeft) fish.classList.add('flipped');
+
+  var topPct = 15 + Math.random() * 60; // 縦位置はランダム(判定ライン付近は避けて上寄りにしておく)
+  fish.style.top = topPct + '%';
+  fish.style.left = fromLeft ? '-40px' : 'auto';
+  fish.style.right = fromLeft ? 'auto' : '-40px';
+
+  fish.innerHTML = '<div class="fish-body"></div><div class="fish-tail"></div>';
+  playfield.appendChild(fish);
+
+  var playfieldWidth = playfield.clientWidth || 360;
+  var duration = 7 + Math.random() * 3;
+  fish.style.transition = 'left ' + duration + 's linear, right ' + duration + 's linear';
+  requestAnimationFrame(function () {
+    if (fromLeft) fish.style.left = (playfieldWidth + 40) + 'px';
+    else fish.style.right = (playfieldWidth + 40) + 'px';
+  });
+  setTimeout(function () { if (fish.parentNode) fish.remove(); }, duration * 1000 + 200);
+}
 
 function stopSongPlayback() {
   currentSong.playing = false;
@@ -593,7 +653,8 @@ function spawnRealNote(entry) {
   note.style.left = inset + 'px';
   note.style.right = inset + 'px';
   note.style.height = height + 'px';
-  note.style.top = (-height) + 'px';
+  note.style.top = '0';
+  note.style.transform = 'translateY(' + (-height) + 'px)';
 
   if (skinId === 'normal') {
     // ノーマルスキン：PC版と同じ、塗りつぶしの長方形。白鍵は黄金色、黒鍵は紫色
@@ -768,6 +829,10 @@ export function openStudioPlay(songEntry) {
       currentSong.gainCompensation = songEntry.gainCompensation || 1;
       currentSong.audioIndex = 0;
       currentSong.chartIndex = 0;
+      currentSong.score = 0;
+      currentSong.lastFishMilestone = 0;
+      var scoreEl = document.getElementById('studioScoreValue');
+      if (scoreEl) scoreEl.textContent = '0';
 
       runCountdown(function () {
         if (document.getElementById('scene-studio-play').classList.contains('hidden')) return; // 待っている間に閉じられていたら何もしない
