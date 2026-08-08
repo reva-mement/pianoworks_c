@@ -4,7 +4,7 @@
 var SKINS = [
   { id: 'normal', name: 'ノーマル', description: 'PC版と同じ、シンプルな塗りつぶしの長方形。白鍵は黄金色、黒鍵は紫色。', available: true },
   { id: 'water', name: '水（バブル）', description: '角丸の輪郭に、内側で揺れる小さな泡。青い泡が1つだけ紛れている。', available: true },
-  { id: 'fire', name: '炎', available: false },
+  { id: 'fire', name: '炎', description: '鍵盤から炎が噴き上がり、触れたノーツを燃やして灰にする。', available: true },
   { id: 'underwater', name: '水中', available: false },
   { id: 'space', name: '宇宙', available: false },
   { id: 'sand', name: '砂', available: false }
