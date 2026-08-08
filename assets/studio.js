@@ -12,6 +12,21 @@ var built = false;
 var loopStarted = false;
 var FALL_DURATION_MS = 2600; // ノーツが上端から鍵盤に届くまでの時間
 var MISS_GRACE_MS = 600;     // 鍵盤に到達してから、取りこぼしとして静かに消えるまでの猶予
+var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
+var JUDGE_LINE_OFFSET = 15;  // 鍵盤上端から判定ラインまでの距離(px)
+var HIT_WINDOW_PX = 40;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める
+var JUST_WINDOW_PX = 12;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)
+
+// ノーツの現在位置が、判定ラインからどれだけ離れているかで判定する。
+// 'just'=ジャストタイミング、'hit'=普通のヒット、null=まだ早い/もう遅い(判定なし)
+function judgeNoteHit(record, areaHeight) {
+  var lineY = areaHeight - JUDGE_LINE_OFFSET;
+  var noteBottom = record.y + record.height;
+  var dist = Math.abs(noteBottom - lineY);
+  if (dist <= JUST_WINDOW_PX) return 'just';
+  if (dist <= HIT_WINDOW_PX) return 'hit';
+  return null;
+}
 
 function buildPlayfield() {
   var playfield = document.getElementById('studio-playfield');
@@ -43,18 +58,11 @@ function buildPlayfield() {
   blackKeysLayer.id = 'studio-black-keys-layer';
   document.getElementById('scene-studio-play').appendChild(blackKeysLayer);
 
-  // 当たり判定の目安ライン(PC版と同じ配置：鍵盤の上端を基準に30px・75px・120px)
-  var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
-  [
-    { offset: 30, dashed: false },
-    { offset: 75, dashed: true },
-    { offset: 120, dashed: false }
-  ].forEach(function (line) {
-    var el = document.createElement('div');
-    el.className = line.dashed ? 'studio-hitzone-line-dashed' : 'studio-hitzone-line';
-    el.style.bottom = (KEYS_TOTAL_HEIGHT + line.offset) + 'px';
-    document.getElementById('scene-studio-play').appendChild(el);
-  });
+  // 当たり判定ライン：鍵盤の上端から15pxの位置に1本だけ
+  var judgeLineEl = document.createElement('div');
+  judgeLineEl.className = 'studio-hitzone-line';
+  judgeLineEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET) + 'px';
+  document.getElementById('scene-studio-play').appendChild(judgeLineEl);
 
   // ---- ベロシティ推定 ----
   var DEFAULT_VELOCITY = 90;
@@ -129,17 +137,17 @@ function buildPlayfield() {
     laneStates[laneIndex].bubbles.push({ el: b, risen: 0, speed: 90 + Math.random() * 50, size: size });
   }
 
-  // 鍵盤付近(ヒット判定圏内)にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)
-  var HIT_ZONE_PX = 120; // 見た目のガイド線(30px〜120px)の外枠に合わせる
+  // 鍵盤付近にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)。判定ライン基準で判定する
   function tryHitNearestNote(fallArea, laneIndex) {
     var areaHeight = fallArea.clientHeight || 260;
     var state = laneStates[laneIndex];
     for (var i = 0; i < state.notes.length; i++) {
       var record = state.notes[i];
       if (record.popped) continue;
-      if (record.y + record.height >= areaHeight - HIT_ZONE_PX) {
+      var judgment = judgeNoteHit(record, areaHeight);
+      if (judgment) {
         record.popped = true;
-        popNote(record.el, fallArea, record);
+        popNote(record.el, fallArea, record, judgment);
         return;
       }
     }
@@ -230,9 +238,13 @@ function buildPlayfield() {
         state.notes.forEach(function (record) {
           if (record.popped) return;
           if (bubbleTopY <= record.y + record.height && bubbleTopY + b.size >= record.y) {
-            record.popped = true;
-            b.consumed = true;
-            popNote(record.el, fallArea, record);
+            var judgment = judgeNoteHit(record, areaHeight);
+            if (judgment) {
+              record.popped = true;
+              b.consumed = true;
+              popNote(record.el, fallArea, record, judgment);
+            }
+            // 判定ラインから離れすぎている場合は、泡が触れても弾けない(すり抜ける)
           }
         });
       });
@@ -269,18 +281,28 @@ function driftMiniBubble(mini, noteHeight) {
 }
 
 // ノーツが弾ける演出(水しぶき)。タップで弾いた時・泡が当たった時、どちらからも呼ばれる
-function popNote(note, area, record) {
+function popNote(note, area, record, judgment) {
   if (note.classList.contains('popping')) return;
   if (record && record.pitch != null) {
     var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
     playNote(record.pitch, v, record.duration); // 音を鳴らすのはここ1箇所だけ(二重に鳴るのを防ぐ)
-    console.log('[hit] pitch=' + record.pitch);
-    addScore(SCORE_PER_HIT);
+    console.log('[hit] pitch=' + record.pitch + ' judgment=' + judgment);
+    addScore(judgment === 'just' ? SCORE_PER_HIT * 2 : SCORE_PER_HIT);
   }
   var rect = note.getBoundingClientRect();
   var areaRect = area.getBoundingClientRect();
   var cx = rect.left - areaRect.left + rect.width / 2;
   var cy = rect.top - areaRect.top + rect.height / 2;
+
+  if (judgment === 'just') {
+    var popup = document.createElement('div');
+    popup.className = 'studio-just-popup';
+    popup.textContent = 'JUST';
+    popup.style.left = cx + 'px';
+    popup.style.top = cy + 'px';
+    area.appendChild(popup);
+    popup.addEventListener('animationend', function () { popup.remove(); });
+  }
 
   note.classList.add('popping');
   var skinId = getCurrentSkinId();
@@ -718,10 +740,13 @@ function spawnRealNote(entry) {
 
   note.addEventListener('pointerdown', function (ev) {
     ev.stopPropagation();
-    if (!record.popped) {
+    if (record.popped) return;
+    var judgment = judgeNoteHit(record, areaHeight);
+    if (judgment) {
       record.popped = true;
-      popNote(note, area, record);
+      popNote(note, area, record, judgment);
     }
+    // 判定ラインから離れすぎている場合は、タップしても何も起きない(タイミングを合わせる必要がある)
   });
 }
 
