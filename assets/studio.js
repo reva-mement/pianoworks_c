@@ -232,9 +232,16 @@ function buildPlayfield() {
     '<div class="studio-score-value" id="studioScoreValue">0</div>' +
     '<div class="studio-combo-label">COMBO</div>' +
     '<div class="studio-combo-value" id="studioComboValue">0</div>' +
+    '<div id="studio-abort-btn" class="studio-abort-btn">中断</div>' +
     '<div style="flex:1;"></div>' +
     '<div class="studio-score-key-spacer"></div>';
   playfield.appendChild(scorePanel);
+
+  document.getElementById('studio-abort-btn').addEventListener('click', async function (e) {
+    e.stopPropagation();
+    var confirmed = await window.showCustomConfirm('演奏を中断します。終了しますか？');
+    if (confirmed) closeStudioPlay();
+  });
 
   // ---- メインループ：ノーツの落下、泡の上昇、衝突判定 ----
   var lastFrameTime = null;
@@ -761,7 +768,7 @@ function spawnRealNote(entry) {
     note.className = 'studio-note skin-normal';
     var semitone = ((entry.pitch % 12) + 12) % 12;
     var isBlackKey = !!SHARP_SEMITONES[semitone];
-    note.style.background = isBlackKey
+    note.style.backgroundColor = isBlackKey
       ? 'hsl(' + (260 + Math.random() * 20) + ', 70%, 60%)'
       : 'hsl(' + (40 + Math.random() * 20) + ', 80%, 65%)';
   } else {
