@@ -887,16 +887,16 @@ function stopSongPlayback() {
     state.notes = [];
     state.bubbles = [];
   });
-  saveMaxScoreIfNeeded();
+  return saveMaxScoreIfNeeded();
 }
 
 // 中断・完了に関わらず、今回のスコアが過去の最高を上回っていれば保存する
 function saveMaxScoreIfNeeded() {
-  if (currentSong.entryId == null) return;
-  if (currentSong.accuracyHistory.length === 0) return; // 一度も叩かないまま終わった場合は保存しない
+  if (currentSong.entryId == null) return Promise.resolve();
+  if (currentSong.accuracyHistory.length === 0) return Promise.resolve(); // 一度も叩かないまま終わった場合は保存しない
   var newScore = currentSong.score;
   var newHistory = currentSong.accuracyHistory.slice();
-  studioDB.getAllSongs().then(function (songs) {
+  return studioDB.getAllSongs().then(function (songs) {
     var target = songs.filter(function (s) { return s.id === currentSong.entryId; })[0];
     if (!target) return;
     target.scoreHistory = newHistory; // グラフは常に最新のプレイの記録に更新する
@@ -1123,12 +1123,15 @@ export function openStudioPlay(songEntry) {
 }
 
 export function closeStudioPlay() {
-  stopSongPlayback();
+  var savePromise = stopSongPlayback();
   document.getElementById('studio-countdown').style.display = 'none';
   document.getElementById('scene-studio-play').classList.add('hidden');
   document.getElementById('scene-home').classList.remove('hidden');
   document.getElementById('studio-list-overlay').style.display = 'flex';
-  renderStudioSongList(); // 一覧に戻った時、最新の状態(削除等)に合わせて再描画
+  renderStudioSongList(); // 保存前の状態でも、ひとまず一覧を表示しておく(体感速度を優先)
+  savePromise.then(function () {
+    renderStudioSongList(); // 保存が完了したら、最新の状態(MAX SCORE等)で再描画し直す
+  });
 }
 
 // 曲の詳細(MAX SCORE・accuracyグラフ)をモーダルで表示する
