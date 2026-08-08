@@ -762,7 +762,9 @@ function runCountdown(onDone) {
   overlay.style.display = 'flex';
 
   var isNormal = getCurrentSkinId() === 'normal';
-  var counts = isNormal ? ['⑤', '④', '③', '②', '①', '⓪'] : ['3', '2', '1']; // ノーマルはPC版と同じ表記
+  bubble.style.filter = isNormal ? 'none' : 'url(#note-wobble)';
+  bubble.style.borderColor = isNormal ? 'rgba(232,150,66,0.9)' : 'rgba(150,150,155,0.9)';
+  var counts = isNormal ? ['5', '4', '3', '2', '1', '0'] : ['3', '2', '1']; // 丸数字のUnicode文字はフォントによって欠けるため、プレーンな数字+CSSの円にする
   var i = 0;
   function showNext() {
     if (document.getElementById('scene-studio-play').classList.contains('hidden')) {
@@ -869,11 +871,5 @@ export function initStudio() {
       closeStudioList();
     });
   }
-  var playCloseBtn = document.getElementById('studio-close');
-  if (playCloseBtn) {
-    playCloseBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      closeStudioPlay();
-    });
-  }
+  // studio-closeボタンは廃止。closeStudioPlay()自体は他の経路から呼べるよう残す
 }

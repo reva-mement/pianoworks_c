@@ -9,7 +9,22 @@ var SKINS = [
   { id: 'space', name: '宇宙', available: false },
   { id: 'sand', name: '砂', available: false }
 ];
-var currentSkinId = 'water';
+
+var SKIN_STORAGE_KEY = 'pianoworks_selected_skin';
+var DEFAULT_SKIN_ID = 'normal';
+
+function loadSavedSkinId() {
+  try {
+    var saved = localStorage.getItem(SKIN_STORAGE_KEY);
+    if (saved && SKINS.some(function (s) { return s.id === saved && s.available; })) {
+      return saved;
+    }
+  } catch (err) { /* localStorageが使えない環境では無視して既定値を使う */ }
+  return DEFAULT_SKIN_ID;
+}
+
+var currentSkinId = loadSavedSkinId(); // 実際に決定され、ゲームで使われるスキン
+var pendingSkinId = currentSkinId;      // 一覧で選んでいるが、まだ「決定」を押していないスキン
 var marqueeStyleInjected = false;
 
 function ensureMarqueeStyle() {
@@ -27,7 +42,7 @@ function renderSkinList() {
   if (!list) return;
   list.innerHTML = '';
   SKINS.forEach(function (skin) {
-    var selected = skin.id === currentSkinId;
+    var selected = skin.id === pendingSkinId; // 「決定」前の、一覧上での選択状態
     var row = document.createElement('div');
     row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid " + (selected ? "rgba(232,150,66,0.85)" : "rgba(232,150,66,0.4)") + (skin.available ? "; cursor:pointer;" : "; opacity:0.45;");
 
@@ -52,7 +67,7 @@ function renderSkinList() {
 
     if (skin.available) {
       row.addEventListener('click', function () {
-        currentSkinId = skin.id;
+        pendingSkinId = skin.id; // ここではまだ決定しない。表示上の選択だけを変える
         renderSkinList();
       });
     }
@@ -70,7 +85,14 @@ function renderSkinList() {
   });
 }
 
+function confirmSkinSelection() {
+  currentSkinId = pendingSkinId;
+  try { localStorage.setItem(SKIN_STORAGE_KEY, currentSkinId); } catch (err) { /* 保存できない環境では無視 */ }
+  closeSkinList();
+}
+
 export function openSkinList() {
+  pendingSkinId = currentSkinId; // 開き直すたびに、今の決定済みスキンから選び直す
   document.getElementById('skin-overlay').style.display = 'flex';
   renderSkinList();
 }
@@ -88,7 +110,14 @@ export function initSkinList() {
   if (closeBtn) {
     closeBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      closeSkinList();
+      closeSkinList(); // ×で閉じた場合は、決定しないまま(選び直しは破棄される)
+    });
+  }
+  var confirmBtn = document.getElementById('skin-confirm');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      confirmSkinSelection();
     });
   }
 }
