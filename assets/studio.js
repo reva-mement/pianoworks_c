@@ -188,6 +188,19 @@ function buildPlayfield() {
     laneStates[laneIndex].bubbles.push({ el: b, risen: 0, speed: 90 + Math.random() * 50, size: size });
   }
 
+  // ---- 鍵盤から噴き上がり続ける炎(炎スキン限定)。仕組みは泡とまったく同じで、見た目だけ差し替える ----
+  function spawnRisingFlame(fallArea, laneIndex) {
+    var f = document.createElement('div');
+    f.className = 'studio-rising-flame';
+    var width = 7 + Math.random() * 5;
+    var height = width * (1.8 + Math.random() * 0.8); // 縦長にして、火炎放射器の噴射に近づける
+    f.style.width = width + 'px';
+    f.style.height = height + 'px';
+    f.style.left = (25 + Math.random() * 50) + '%'; // 鍵盤の中央寄りから噴射する
+    fallArea.appendChild(f);
+    laneStates[laneIndex].bubbles.push({ el: f, risen: 0, speed: 160 + Math.random() * 80, size: height });
+  }
+
   // 鍵盤付近にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)。判定ライン基準で判定する
   function tryHitNearestNote(fallArea, laneIndex) {
     var areaHeight = fallArea.clientHeight || 260;
@@ -211,12 +224,17 @@ function buildPlayfield() {
       if (pressedLoopId) return;
       (function loopPressed() {
         if (!key.classList.contains('pressed')) { pressedLoopId = null; return; }
-        if (getCurrentSkinId() === 'normal') {
-          tryHitNearestNote(fallArea, laneIndex); // 泡なし、直接ヒット判定
+        var skinId = getCurrentSkinId();
+        var nextDelay = 90 + Math.random() * 80;
+        if (skinId === 'normal') {
+          tryHitNearestNote(fallArea, laneIndex); // 泡・炎なし、直接ヒット判定
+        } else if (skinId === 'fire') {
+          spawnRisingFlame(fallArea, laneIndex); // 炎スキン：炎を噴き上らせる
+          nextDelay = 40 + Math.random() * 30; // 火炎放射器のように、途切れなく連続して出す
         } else {
           spawnRisingBubble(fallArea, laneIndex); // 水スキン：泡を立ち上らせる
         }
-        pressedLoopId = setTimeout(loopPressed, 90 + Math.random() * 80);
+        pressedLoopId = setTimeout(loopPressed, nextDelay);
       })();
     }
     var mo = new MutationObserver(function () {
@@ -419,6 +437,39 @@ function popNote(note, area, record, judgment, opts) {
 
       area.appendChild(star);
       (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(star);
+    }
+  } else if (skinId === 'fire') {
+    // 炎スキン：燃え上がる閃光+火の粉が舞い散る演出("燃やして灰にする")
+    var flash = document.createElement('div');
+    flash.className = 'studio-burn-flash';
+    var flashSize = Math.max(rect.width, rect.height) * 1.3;
+    flash.style.width = flashSize + 'px';
+    flash.style.height = flashSize + 'px';
+    flash.style.left = cx + 'px';
+    flash.style.top = cy + 'px';
+    flash.style.animation = 'studioBurnFlash 0.4s ease-out forwards';
+    area.appendChild(flash);
+    flash.addEventListener('animationend', function () { flash.remove(); });
+
+    var ashCount = 7 + Math.floor(Math.random() * 5);
+    for (var e = 0; e < ashCount; e++) {
+      var ash = document.createElement('div');
+      ash.className = 'studio-ash';
+      var esize = 3 + Math.random() * 4;
+      ash.style.width = esize + 'px';
+      ash.style.height = esize + 'px';
+      ash.style.left = (cx - esize / 2 + (Math.random() - 0.5) * rect.width) + 'px';
+      ash.style.top = (cy - esize / 2) + 'px';
+
+      var eDist = 10 + Math.random() * 18;
+      ash.style.setProperty('--dx', ((Math.random() - 0.5) * eDist).toFixed(1) + 'px');
+      ash.style.setProperty('--dy', (18 + Math.random() * 22).toFixed(1) + 'px'); // 灰は下にゆっくり舞い落ちる
+      ash.style.setProperty('--rot', (Math.random() * 180 - 90) + 'deg');
+      var eDur = 0.6 + Math.random() * 0.4;
+      ash.style.animation = 'studioAshFall ' + eDur.toFixed(2) + 's ease-out forwards';
+
+      area.appendChild(ash);
+      (function (el) { el.addEventListener('animationend', function () { el.remove(); }); })(ash);
     }
   } else {
     // 水スキン：波紋+水しぶき
@@ -848,8 +899,8 @@ function spawnRealNote(entry) {
   note.style.top = '0';
   note.style.transform = 'translateY(' + (-height) + 'px)';
 
-  if (skinId === 'normal') {
-    // ノーマルスキン：PC版と同じ、塗りつぶしの長方形。白鍵は黄金色、黒鍵は紫色
+  if (skinId === 'normal' || skinId === 'fire') {
+    // ノーマルスキンと共通の見た目。塗りつぶしの長方形、白鍵は黄金色、黒鍵は紫色
     note.className = 'studio-note skin-normal';
     var semitone = ((entry.pitch % 12) + 12) % 12;
     var isBlackKey = !!SHARP_SEMITONES[semitone];
