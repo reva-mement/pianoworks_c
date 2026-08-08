@@ -73,6 +73,28 @@ export var studioDB = makeSongStore('studioSongs');
 
 var library = [];
 var currentPlayback = { timeouts: [], playing: false, index: -1, paused: false };
+var shuffleOn = false;
+var repeatOn = false;
+
+// 曲が最後まで自然に終わった時、シャッフル/リピートの設定に応じて次を決める
+function handleSongEnded(finishedIndex) {
+  if (repeatOn) {
+    if (finishedIndex === 'bonus') { playBonusTrack(); }
+    else { playSong(finishedIndex); }
+    return;
+  }
+  if (shuffleOn && library.length > 0) {
+    var candidates = library.map(function (_, i) { return i; });
+    if (finishedIndex !== 'bonus' && candidates.length > 1) {
+      candidates = candidates.filter(function (i) { return i !== finishedIndex; });
+    }
+    var nextIndex = candidates[Math.floor(Math.random() * candidates.length)];
+    playSong(nextIndex);
+    return;
+  }
+  currentPlayback.playing = false;
+  renderJukeboxList();
+}
 var els = {}; // DOM要素はinitJukebox()で解決する
 
 var BONUS_TRACK = {
@@ -381,8 +403,7 @@ function playBonusTrack() {
   if (!bonusAudioEl) {
     bonusAudioEl = new Audio(BONUS_TRACK.audioUrl);
     bonusAudioEl.addEventListener('ended', function () {
-      currentPlayback.playing = false;
-      renderJukeboxList();
+      handleSongEnded('bonus');
     });
   }
   currentPlayback.playing = true;
@@ -441,8 +462,7 @@ function schedulerTick() {
   }
   updateSeekBarProgress(elapsedMs);
   if (elapsedMs >= playbackState.durationMs + 400) {
-    currentPlayback.playing = false;
-    renderJukeboxList();
+    handleSongEnded(currentPlayback.index);
   }
 }
 
@@ -619,6 +639,22 @@ export function initJukebox() {
     library = songs;
     renderJukeboxList();
   }).catch(function (err) { console.error('jukebox DB load error:', err); });
+
+  // ---- シャッフル・リピートボタン ----
+  var randomBtn = document.getElementById('jukebox-random-btn');
+  var repeatBtn = document.getElementById('jukebox-repeat-btn');
+  var LIT_COLOR = '#e8a24a';
+  var DIM_COLOR = '#6b675e';
+  randomBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    shuffleOn = !shuffleOn;
+    randomBtn.style.color = shuffleOn ? LIT_COLOR : DIM_COLOR;
+  });
+  repeatBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    repeatOn = !repeatOn;
+    repeatBtn.style.color = repeatOn ? LIT_COLOR : DIM_COLOR;
+  });
 
   // ---- デバッグ用：コンソールから直接いろいろ試せるようにしておく ----
   window.__jukeboxDebug = {
