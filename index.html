@@ -158,6 +158,30 @@
     top:0; left:0; right:0; bottom:0;
     display:flex;
     perspective:500px;
+    z-index:5;
+  }
+  #scene-studio-play .studio-bg-fish{
+    position:absolute;
+    z-index:1;
+    pointer-events:none;
+    opacity:0.4;
+  }
+  #scene-studio-play .studio-bg-fish .fish-body{
+    width:36px; height:15px;
+    background:rgba(130,180,235,0.55);
+    border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
+    box-shadow:0 0 8px rgba(130,180,235,0.3);
+  }
+  #scene-studio-play .studio-bg-fish .fish-tail{
+    position:absolute; right:-8px; top:50%;
+    width:0; height:0;
+    border-top:7px solid transparent;
+    border-bottom:7px solid transparent;
+    border-left:9px solid rgba(130,180,235,0.55);
+    transform:translateY(-50%);
+  }
+  #scene-studio-play .studio-bg-fish.flipped{
+    transform:scaleX(-1);
   }
   #scene-studio-play .studio-lane{
     flex:1;
@@ -318,6 +342,23 @@
     border-radius:0 0 3px 3px;
     box-shadow:0 4px 6px rgba(0,0,0,0.5), inset 0 -8px 10px rgba(255,255,255,0.04);
     transform:translateX(-50%);
+  }
+  /* 当たり判定の目安。PC版と同じく、鍵盤の上端から30px・120pxの位置に実線、75pxの位置に点線 */
+  #scene-studio-play .studio-hitzone-line{
+    position:absolute;
+    left:0; right:0;
+    height:1px;
+    background:rgba(255,255,255,0.5);
+    pointer-events:none;
+    z-index:8;
+  }
+  #scene-studio-play .studio-hitzone-line-dashed{
+    position:absolute;
+    left:0; right:0;
+    height:0;
+    border-top:1px dashed rgba(255,255,255,0.9);
+    pointer-events:none;
+    z-index:8;
   }
   #scene-studio-play .studio-score-panel{
     flex:1;
@@ -616,7 +657,7 @@
     var w = WEEKDAY_KANJI[now.getDay()];
     var hh = String(now.getHours()).padStart(2, '0');
     var mm = String(now.getMinutes()).padStart(2, '0');
-    el.textContent = y + '年' + m + '月' + d + '日(' + w + ') ' + hh + ':' + mm;
+    el.textContent = y + '/' + m + '/' + d + '(' + w + ') ' + hh + ':' + mm;
   }
   updateDateTime();
   setInterval(updateDateTime, 1000 * 15); // 15秒ごとに確認し、分が変わっていれば表示を更新する
