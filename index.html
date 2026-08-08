@@ -58,7 +58,7 @@
     100%{clip-path:inset(0 0% 0 0); filter:blur(0); letter-spacing:1px; text-shadow:0 0 18px rgba(251,245,230,0.45);}
   }
   .titlewrap{position:absolute;top:9%;left:0;right:0;text-align:center;pointer-events:none;}
-  .eyebrow{font-family:'Zen Old Mincho', serif;font-size:13px;letter-spacing:6px;color:#efe8d8;opacity:0;}
+  .eyebrow{font-family:'Yomogi', cursive;font-size:13px;letter-spacing:6px;color:#efe8d8;opacity:0;}
   .title{font-family:'Cormorant Garamond', serif;font-style:italic;font-size:44px;color:#fbf5e6;margin-top:6px;letter-spacing:1px;opacity:1;clip-path:inset(0 100% 0 0);}
   .tap{position:absolute;bottom:6%;left:0;right:0;text-align:center;font-family:'Zen Old Mincho', serif;font-size:13px;letter-spacing:4px;color:#efe8d8;}
 
@@ -397,6 +397,17 @@
       <div id="skin-list" style="flex:1; overflow-y:auto; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:0;"></div>
     </div>
 
+    <div id="settings-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; flex-direction:column; z-index:20;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
+        <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">設定</div>
+        <div id="settings-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
+      </div>
+      <div style="flex:1; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:0;">
+        <div id="settings-back-to-title" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">タイトルに戻る</div>
+        <div id="settings-quit-app" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">アプリを終了</div>
+      </div>
+    </div>
+
     <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; flex-direction:column; z-index:20;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Jukebox</div>
@@ -489,9 +500,33 @@
       if (btn.id === 'btn-piano-mark') {
         openSkinList();
       } else {
-        console.log('settings button tapped (screen not implemented yet)');
+        openSettings();
       }
     });
+  });
+
+  function openSettings(){
+    document.getElementById('settings-overlay').style.display = 'flex';
+  }
+  function closeSettings(){
+    document.getElementById('settings-overlay').style.display = 'none';
+  }
+  document.getElementById('settings-close').addEventListener('click', function(e){
+    e.stopPropagation();
+    closeSettings();
+  });
+  document.getElementById('settings-back-to-title').addEventListener('click', function(e){
+    e.stopPropagation();
+    location.reload(); // タイトルからの状態を素直に作り直す、確実な「戻る」方法
+  });
+  document.getElementById('settings-quit-app').addEventListener('click', function(e){
+    e.stopPropagation();
+    window.close();
+    // ブラウザの仕様上、スクリプトから開いていないタブ・ウィンドウは閉じられないことが多い。
+    // その場合に備えて、少し待っても画面が残っていたら一言添える。
+    setTimeout(function(){
+      alert('ブラウザの設定上、自動では閉じられませんでした。タブを直接閉じてください。');
+    }, 400);
   });
 
   const homeVideo = document.getElementById('homeVideo');
@@ -579,13 +614,13 @@
   }
   [sceneTitle, sceneHome].forEach(function(scene){
     scene.addEventListener('click', function(e){
-      if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay'))) return;
+      if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay') || e.target.closest('#settings-overlay'))) return;
       if (e.target.closest && e.target.closest('#btn-settings')) return;
       if (e.target.closest && e.target.closest('#btn-piano-mark')) return;
       spawnBackgroundRipple(e.clientX, e.clientY);
     });
     scene.addEventListener('touchend', function(e){
-      if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay'))) return;
+      if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay') || e.target.closest('#settings-overlay'))) return;
       if (e.target.closest && e.target.closest('#btn-settings')) return;
       if (e.target.closest && e.target.closest('#btn-piano-mark')) return;
       var t = e.changedTouches && e.changedTouches[0];
@@ -616,7 +651,7 @@
 
     function onPointerDown(e){
       if (e.target.closest && e.target.closest('.aqbtn')) return; // ボタン上は対象外
-      if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay'))) return; // Jukebox内は対象外
+      if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay') || e.target.closest('#settings-overlay'))) return; // Jukebox内は対象外
       if (e.target.closest && e.target.closest('#btn-settings')) return; // 設定ボタン上は対象外
       dragging = true;
       lastX = e.clientX; lastY = e.clientY;
