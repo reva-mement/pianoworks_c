@@ -137,8 +137,9 @@ function seekTo(newElapsedMs) {
 // 曲名を長押し(スマホ)・クリック(PC)で全文表示する。Studio側でも共有して使う。
 export function attachTitleExpand(titleEl, fullName) {
   var expanded = false;
-  var longPressTimer = null;
-  var longPressTriggered = false;
+  var moved = false;
+  var startX = 0;
+  var startY = 0;
 
   titleEl.style.position = 'relative';
   var originalCss = titleEl.style.cssText;
@@ -168,30 +169,21 @@ export function attachTitleExpand(titleEl, fullName) {
 
   titleEl.addEventListener('pointerdown', function (e) {
     e.stopPropagation();
-    if (e.pointerType === 'mouse') return; // マウスはpointerup側でクリック相当として処理する
-    longPressTriggered = false;
-    longPressTimer = setTimeout(function () {
-      longPressTriggered = true;
-      expand();
-    }, 450);
+    moved = false;
+    startX = e.clientX;
+    startY = e.clientY;
   });
   titleEl.addEventListener('pointermove', function (e) {
-    if (e.pointerType === 'mouse') return;
-    clearTimeout(longPressTimer); // 指が動いたら長押し判定をキャンセル(スクロール等との衝突防止)
+    if (Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8) {
+      moved = true; // スクロール等の移動操作は、タップとして扱わない
+    }
   });
   titleEl.addEventListener('pointerup', function (e) {
     e.stopPropagation();
-    if (e.pointerType === 'mouse') {
-      toggle(); // PC：クリック＝タップと同じ扱いで即座にトグル
-      return;
-    }
-    clearTimeout(longPressTimer);
-    if (!longPressTriggered && expanded) {
-      toggle(); // 短いタップは、既に開いている時だけ「閉じる」として働く
-    }
-    // 長押しで開いた場合は、指を離してもそのまま表示され続ける
+    if (moved) return;
+    toggle(); // PC・スマホどちらも、タップ/クリックした瞬間に即座にトグルする
   });
-  titleEl.addEventListener('pointercancel', function () { clearTimeout(longPressTimer); });
+  titleEl.addEventListener('pointercancel', function () { moved = true; });
 }
 
 // 再生/一時停止ボタンと、停止ボタンのペアを作る
@@ -201,7 +193,7 @@ function createPlayPauseStopButtons(isPlaying, isPaused, onPlay, onStop) {
 
   var playPauseBtn = document.createElement('div');
   playPauseBtn.style.cssText = "width:26px; height:26px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:11px; cursor:pointer;";
-  playPauseBtn.textContent = (isPlaying && !isPaused) ? '⏸' : '▶';
+  playPauseBtn.textContent = (isPlaying && !isPaused) ? 'Ⅱ' : '▶';
   playPauseBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     if (!isPlaying) { onPlay(); }
