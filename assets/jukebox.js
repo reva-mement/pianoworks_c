@@ -447,7 +447,7 @@ export function initJukebox() {
     e.stopPropagation();
     stopJukeboxPlayback();
     els.overlay.style.display = 'none';
-    fadeBgm(1, 500);
+    fadeBgm(0.7, 500); // index.htmlで設定しているBGMの基準音量と揃える
   });
 
   jukeboxDB.getAllSongs().then(function (songs) {
