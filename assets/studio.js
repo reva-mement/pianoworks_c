@@ -420,6 +420,29 @@ function updateBlackKeys(windowStart) {
   }
 }
 
+// 同じ瞬間(ごく近い時間)に複数の音が重なっている場合、一番高い音を「主旋律の候補」とみなす。
+// 和音・伴奏を含めた単純な使用頻度で範囲を選ぶと、伴奏の音数に引っ張られてしまうため、
+// レーンの範囲を選ぶ時だけはこちらを使う(実際に鳴らす対象の判定には影響しない)。
+function extractMelodyPitches(songData) {
+  if (!songData || songData.length === 0) return [];
+  var sorted = songData.slice().sort(function (a, b) { return a.time - b.time; });
+  var CLUSTER_MS = 60; // このくらい近い時刻は「ほぼ同時」とみなす
+  var melody = [];
+  var i = 0;
+  while (i < sorted.length) {
+    var clusterTime = sorted[i].time;
+    var j = i;
+    var highest = sorted[i];
+    while (j < sorted.length && sorted[j].time - clusterTime < CLUSTER_MS) {
+      if (sorted[j].pitch > highest.pitch) highest = sorted[j];
+      j++;
+    }
+    melody.push(highest);
+    i = j;
+  }
+  return melody;
+}
+
 function computeLaneWindow(songData) {
   if (!songData || songData.length === 0) return 60;
   var counts = {};
@@ -617,7 +640,8 @@ export function openStudioPlay(songEntry) {
   loadPianoSamples().then(function () {
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
-      var windowStart = computeLaneWindow(songEntry.songData);
+      var melodyPitches = extractMelodyPitches(songEntry.songData);
+      var windowStart = computeLaneWindow(melodyPitches);
       updateBlackKeys(windowStart);
       var chart = [];
       var autoNotes = [];
@@ -634,6 +658,7 @@ export function openStudioPlay(songEntry) {
 
       currentSong.ctx = ctx;
       currentSong.audioNotes = autoNotes;
+      console.log('[debug] 主旋律候補=' + melodyPitches.length + '個(全' + songEntry.songData.length + '音符中)');
       console.log('[debug] レーンの範囲: ' + windowStart + '〜' + (windowStart + LANES - 1));
       console.log('[debug] 総音符数=' + songEntry.songData.length + ' / レーン内(叩かないと鳴らない)=' + chart.length + ' / 範囲外(自動再生)=' + autoNotes.length + ' / 自動再生の割合=' + Math.round(autoNotes.length / songEntry.songData.length * 100) + '%');
       currentSong.chart = chart;
