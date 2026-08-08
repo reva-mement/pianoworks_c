@@ -104,7 +104,7 @@ function buildPlayfield() {
   document.addEventListener('pointerup', releaseAll);
   document.addEventListener('pointercancel', releaseAll);
 
-  // ---- 鍵盤から立ち上り続ける泡 ----
+  // ---- 鍵盤から立ち上り続ける泡(水スキン限定) ----
   function spawnRisingBubble(fallArea, laneIndex) {
     var b = document.createElement('div');
     b.className = 'studio-rising-bubble';
@@ -116,6 +116,22 @@ function buildPlayfield() {
     laneStates[laneIndex].bubbles.push({ el: b, risen: 0, speed: 90 + Math.random() * 50, size: size });
   }
 
+  // 鍵盤付近(ヒット判定圏内)にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)
+  var HIT_ZONE_PX = 40;
+  function tryHitNearestNote(fallArea, laneIndex) {
+    var areaHeight = fallArea.clientHeight || 260;
+    var state = laneStates[laneIndex];
+    for (var i = 0; i < state.notes.length; i++) {
+      var record = state.notes[i];
+      if (record.popped) continue;
+      if (record.y + record.height >= areaHeight - HIT_ZONE_PX) {
+        record.popped = true;
+        popNote(record.el, fallArea, record);
+        return;
+      }
+    }
+  }
+
   allKeys.forEach(function (key) {
     var laneIndex = parseInt(key.dataset.lane, 10);
     var fallArea = document.getElementById('studio-fall-' + laneIndex);
@@ -124,7 +140,11 @@ function buildPlayfield() {
       if (pressedLoopId) return;
       (function loopPressed() {
         if (!key.classList.contains('pressed')) { pressedLoopId = null; return; }
-        spawnRisingBubble(fallArea, laneIndex);
+        if (getCurrentSkinId() === 'normal') {
+          tryHitNearestNote(fallArea, laneIndex); // 泡なし、直接ヒット判定
+        } else {
+          spawnRisingBubble(fallArea, laneIndex); // 水スキン：泡を立ち上らせる
+        }
         pressedLoopId = setTimeout(loopPressed, 90 + Math.random() * 80);
       })();
     }
@@ -470,6 +490,47 @@ function extractMelodyPitches(songData) {
   return melody;
 }
 
+// 同じレーン(同じ音程)が短い間隔で連続している場合、1つの長いノーツにまとめる。
+// 「連打」ではなく「押しっぱなし」で対応できるようにするため。
+// この間隔(MERGE_GAP_MS)が、実際の連打・使用感に合わせて調整する部分
+var MERGE_GAP_MS = 180;
+function mergeRapidRepeats(chart) {
+  var byLane = {};
+  chart.forEach(function (n) {
+    if (!byLane[n.lane]) byLane[n.lane] = [];
+    byLane[n.lane].push(n);
+  });
+
+  var merged = [];
+  Object.keys(byLane).forEach(function (laneKey) {
+    var notes = byLane[laneKey].slice().sort(function (a, b) { return a.time - b.time; });
+    var i = 0;
+    while (i < notes.length) {
+      var group = [notes[i]];
+      var groupEnd = notes[i].time + (notes[i].duration || 0);
+      var j = i + 1;
+      while (j < notes.length && (notes[j].time - groupEnd) <= MERGE_GAP_MS) {
+        group.push(notes[j]);
+        groupEnd = notes[j].time + (notes[j].duration || 0);
+        j++;
+      }
+      var first = group[0];
+      var last = group[group.length - 1];
+      merged.push({
+        lane: first.lane,
+        time: first.time,
+        pitch: first.pitch,
+        velocity: first.velocity,
+        duration: (last.time + (last.duration || 0)) - first.time // 最初の音から最後の音の終わりまでを1つに
+      });
+      i = j;
+    }
+  });
+
+  merged.sort(function (a, b) { return a.time - b.time; });
+  return merged;
+}
+
 function computeLaneWindow(songData) {
   if (!songData || songData.length === 0) return 60;
   var counts = {};
@@ -699,9 +760,10 @@ export function openStudioPlay(songEntry) {
 
       currentSong.ctx = ctx;
       currentSong.audioNotes = autoNotes;
+      chart = mergeRapidRepeats(chart);
       console.log('[debug] 主旋律候補=' + melodyPitches.length + '個(全' + songEntry.songData.length + '音符中)');
       console.log('[debug] レーンの範囲: ' + windowStart + '〜' + (windowStart + LANES - 1));
-      console.log('[debug] 総音符数=' + songEntry.songData.length + ' / レーン内(叩かないと鳴らない)=' + chart.length + ' / 範囲外(自動再生)=' + autoNotes.length + ' / 自動再生の割合=' + Math.round(autoNotes.length / songEntry.songData.length * 100) + '%');
+      console.log('[debug] 総音符数=' + songEntry.songData.length + ' / レーン内(叩かないと鳴らない、連打まとめ後)=' + chart.length + ' / 範囲外(自動再生)=' + autoNotes.length + ' / 自動再生の割合=' + Math.round(autoNotes.length / songEntry.songData.length * 100) + '%');
       currentSong.chart = chart;
       currentSong.gainCompensation = songEntry.gainCompensation || 1;
       currentSong.audioIndex = 0;
