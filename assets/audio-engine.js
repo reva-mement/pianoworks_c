@@ -137,11 +137,13 @@ export function playNote(pitch, velocity, durationMs) {
 
   // 明示的なnote-offが来ない場合に備えて、長さの目安で自動的に止める
   var durSec = Math.max(0.05, (durationMs || 400) / 1000);
-  var releaseSec = 0.2;
+  // 余韻を長めに取る。低音ほど波形の周期が長く、短い減衰だと波の途中で
+  // 打ち切られてクリックノイズ(「じじ」)が出やすいため、低音ほどさらに長くする
+  var releaseSec = 0.5 + Math.max(0, 60 - pitch) * 0.012; // 低音ほど+最大で0.7秒ほど長くなる
   gainNode.gain.setTargetAtTime(0.0001, now + durSec, releaseSec / 3);
   // setTargetAtTimeは指数関数的に減衰するため、releaseSecちょうどでは完全に0にならない。
-  // 波形の途中でバッファを打ち切るとクリックノイズ(「じじ」というノイズ)の原因になるため、
-  // 十分に減衰しきるまで(時定数の6倍程度)余裕を持ってから止める
+  // 波形の途中でバッファを打ち切るとクリックノイズの原因になるため、
+  // 十分に減衰しきるまで(時定数の7倍程度)余裕を持ってから止める
   try { src.stop(now + durSec + releaseSec * 2.4); } catch (err) { /* 念のため */ }
 
   src.addEventListener('ended', function () {
