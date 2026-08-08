@@ -491,6 +491,7 @@
   function goToHome(){
     if(started) return;
     started = true;
+    bgm.volume = 0.7;
     bgm.currentTime = 0;
     bgm.play().catch(()=>{});
 
