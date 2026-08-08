@@ -199,7 +199,7 @@ function buildPlayfield() {
           if (bubbleTopY <= record.y + record.height && bubbleTopY + b.size >= record.y) {
             record.popped = true;
             b.consumed = true;
-            popNote(record.el, fallArea);
+            popNote(record.el, fallArea, record);
           }
         });
       });
@@ -236,8 +236,13 @@ function driftMiniBubble(mini, noteHeight) {
 }
 
 // ノーツが弾ける演出(水しぶき)。タップで弾いた時・泡が当たった時、どちらからも呼ばれる
-function popNote(note, area) {
+function popNote(note, area, record) {
   if (note.classList.contains('popping')) return;
+  if (record && record.pitch != null) {
+    var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
+    playNote(record.pitch, v, record.duration); // 音を鳴らすのはここ1箇所だけ(二重に鳴るのを防ぐ)
+    console.log('[hit] pitch=' + record.pitch);
+  }
   var rect = note.getBoundingClientRect();
   var areaRect = area.getBoundingClientRect();
   var cx = rect.left - areaRect.left + rect.width / 2;
@@ -505,7 +510,11 @@ function spawnRealNote(entry) {
     height: height,
     speed: areaHeight / (FALL_DURATION_MS / 1000),
     popped: false,
-    missDeadline: null
+    missDeadline: null,
+    pitch: entry.pitch,
+    velocity: entry.velocity,
+    duration: entry.duration,
+    gainCompensation: currentSong.gainCompensation
   };
   laneStates[entry.lane].notes.push(record);
 
@@ -513,7 +522,7 @@ function spawnRealNote(entry) {
     ev.stopPropagation();
     if (!record.popped) {
       record.popped = true;
-      popNote(note, area);
+      popNote(note, area, record);
     }
   });
 }
@@ -529,6 +538,7 @@ function startAudioScheduler() {
       var n = notes[currentSong.audioIndex];
       var v = Math.max(1, Math.min(100, n.velocity * currentSong.gainCompensation));
       playNote(n.pitch, v, n.duration);
+      console.log('[auto] pitch=' + n.pitch);
       currentSong.audioIndex++;
     }
     if (currentSong.audioIndex >= notes.length) {
@@ -610,15 +620,22 @@ export function openStudioPlay(songEntry) {
       var windowStart = computeLaneWindow(songEntry.songData);
       updateBlackKeys(windowStart);
       var chart = [];
+      var autoNotes = [];
       songEntry.songData.forEach(function (n) {
         var lane = n.pitch - windowStart;
         if (lane >= 0 && lane < LANES) {
+          // レーンに乗る音：自動では鳴らさない。ユーザーが叩いた時だけ鳴る
           chart.push({ lane: lane, time: n.time, pitch: n.pitch, velocity: n.velocity, duration: n.duration });
+        } else {
+          // レーンの範囲外の音：これまで通り自動で鳴らす
+          autoNotes.push(n);
         }
       });
 
       currentSong.ctx = ctx;
-      currentSong.audioNotes = songEntry.songData;
+      currentSong.audioNotes = autoNotes;
+      console.log('[debug] レーンの範囲: ' + windowStart + '〜' + (windowStart + LANES - 1));
+      console.log('[debug] 総音符数=' + songEntry.songData.length + ' / レーン内(叩かないと鳴らない)=' + chart.length + ' / 範囲外(自動再生)=' + autoNotes.length + ' / 自動再生の割合=' + Math.round(autoNotes.length / songEntry.songData.length * 100) + '%');
       currentSong.chart = chart;
       currentSong.gainCompensation = songEntry.gainCompensation || 1;
       currentSong.audioIndex = 0;
