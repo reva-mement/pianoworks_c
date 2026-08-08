@@ -36,7 +36,7 @@ export function getPianoCtx() {
     compressor.attack.value = 0.003;
     compressor.release.value = 0.15;
     masterGain = pianoCtx.createGain();
-    masterGain.gain.value = 2.2; // 元の録音自体が控えめな音量だったため底上げする
+    masterGain.gain.value = 1.1; // 端末側の音量を無理に下げずに済むよう、控えめな音量にしておく
     masterGain.connect(compressor).connect(pianoCtx.destination);
   }
   return pianoCtx;
