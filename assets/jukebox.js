@@ -5,63 +5,71 @@ import { extractNotesFromMidi } from './midi-import.js';
 import { loadPianoSamples, playNote, getPianoCtx, stopAllNotes } from './audio-engine.js';
 
 // ---- IndexedDBによる永続化（本体のplaynote-db.jsと同じ考え方の簡易版） ----
-var jukeboxDB = {
-  db: null,
-  DB_NAME: 'PianoWorksCrescendoDB',
-  DB_VERSION: 1,
-  STORE_NAME: 'jukeboxSongs',
+// JukeboxとStudioは、それぞれ別の記録として独立管理する(同じレコードを共有しない)。
+// そのため、同じデータベース内に別々のストア(jukeboxSongs / studioSongs)を持たせ、
+// 片方を削除してももう片方には影響しないようにしている。
+var DB_NAME = 'PianoWorksCrescendoDB';
+var DB_VERSION = 2;
+var sharedDBPromise = null;
 
-  init: function () {
-    var self = this;
-    return new Promise(function (resolve, reject) {
-      var request = indexedDB.open(self.DB_NAME, self.DB_VERSION);
-      request.onupgradeneeded = function (e) {
-        var db = e.target.result;
-        if (!db.objectStoreNames.contains(self.STORE_NAME)) {
-          db.createObjectStore(self.STORE_NAME, { keyPath: 'id', autoIncrement: true });
-        }
-      };
-      request.onsuccess = function (e) { self.db = e.target.result; resolve(self.db); };
-      request.onerror = function (e) { reject(e.target.error); };
-    });
-  },
+function openSharedDB() {
+  if (sharedDBPromise) return sharedDBPromise;
+  sharedDBPromise = new Promise(function (resolve, reject) {
+    var request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = function (e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains('jukeboxSongs')) {
+        db.createObjectStore('jukeboxSongs', { keyPath: 'id', autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains('studioSongs')) {
+        db.createObjectStore('studioSongs', { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    request.onsuccess = function (e) { resolve(e.target.result); };
+    request.onerror = function (e) { reject(e.target.error); };
+  });
+  return sharedDBPromise;
+}
 
-  saveSong: function (entry) {
-    var self = this;
-    return (self.db ? Promise.resolve() : self.init()).then(function () {
-      return new Promise(function (resolve, reject) {
-        var tx = self.db.transaction([self.STORE_NAME], 'readwrite');
-        var req = tx.objectStore(self.STORE_NAME).add(entry);
-        req.onsuccess = function () { resolve(req.result); };
-        req.onerror = function () { reject(req.error); };
+// storeNameを指定した、そのストア専用の読み書きオブジェクトを作る
+function makeSongStore(storeName) {
+  return {
+    saveSong: function (entry) {
+      return openSharedDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction([storeName], 'readwrite');
+          var req = tx.objectStore(storeName).add(entry);
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { reject(req.error); };
+        });
       });
-    });
-  },
-
-  getAllSongs: function () {
-    var self = this;
-    return (self.db ? Promise.resolve() : self.init()).then(function () {
-      return new Promise(function (resolve, reject) {
-        var tx = self.db.transaction([self.STORE_NAME], 'readonly');
-        var req = tx.objectStore(self.STORE_NAME).getAll();
-        req.onsuccess = function () { resolve(req.result); };
-        req.onerror = function () { reject(req.error); };
+    },
+    getAllSongs: function () {
+      return openSharedDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction([storeName], 'readonly');
+          var req = tx.objectStore(storeName).getAll();
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { reject(req.error); };
+        });
       });
-    });
-  },
-
-  deleteSong: function (id) {
-    var self = this;
-    return (self.db ? Promise.resolve() : self.init()).then(function () {
-      return new Promise(function (resolve, reject) {
-        var tx = self.db.transaction([self.STORE_NAME], 'readwrite');
-        var req = tx.objectStore(self.STORE_NAME).delete(id);
-        req.onsuccess = function () { resolve(); };
-        req.onerror = function () { reject(req.error); };
+    },
+    deleteSong: function (id) {
+      return openSharedDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction([storeName], 'readwrite');
+          var req = tx.objectStore(storeName).delete(id);
+          req.onsuccess = function () { resolve(); };
+          req.onerror = function () { reject(req.error); };
+        });
       });
-    });
-  }
-};
+    }
+  };
+}
+
+// JukeboxとStudioは別ストア＝別管理。IMPORT時に両方へ複製して保存する(下のhandleMidiFile参照)。
+export var jukeboxDB = makeSongStore('jukeboxSongs');
+export var studioDB = makeSongStore('studioSongs');
 
 var library = [];
 var currentPlayback = { timeouts: [], playing: false, index: -1, paused: false };
@@ -497,14 +505,28 @@ function handleMidiFile(file) {
         scoreHistory: []
       };
 
+      // JukeboxとStudioは別管理(別レコード)にするため、それぞれに独立した複製を保存する。
+      // 片方を削除してももう片方には影響しない。
+      var studioEntry = {
+        name: entry.name,
+        songData: entry.songData,
+        durationMs: entry.durationMs,
+        gainCompensation: entry.gainCompensation,
+        scoreHistory: []
+      };
+
       jukeboxDB.saveSong(entry).then(function (newId) {
         entry.id = newId;
         library.push(entry);
         renderJukeboxList();
       }).catch(function (err) {
-        console.error('save failed:', err);
+        console.error('save failed(jukebox):', err);
         library.push(entry);
         renderJukeboxList();
+      });
+
+      studioDB.saveSong(studioEntry).catch(function (err) {
+        console.error('save failed(studio):', err);
       });
 
       console.log('MIDI parsed:', file.name, parsed.notes.length, 'notes');

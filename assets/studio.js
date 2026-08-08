@@ -3,6 +3,7 @@
 // 見た目確認用のダミーノーツを表示する段階で、実際のMIDI連動はまだ行っていない。
 
 import { getCurrentSkinId } from './skin.js';
+import { studioDB } from './jukebox.js';
 
 var LANES = 6;
 var laneStates = [];
@@ -42,7 +43,7 @@ function buildPlayfield() {
     bk.style.left = ((boundaryIndex + 1) / LANES * 100) + '%';
     blackKeysLayer.appendChild(bk);
   });
-  document.getElementById('scene-studio').appendChild(blackKeysLayer);
+  document.getElementById('scene-studio-play').appendChild(blackKeysLayer);
 
   // ---- ベロシティ推定 ----
   var DEFAULT_VELOCITY = 90;
@@ -262,7 +263,7 @@ function buildPlayfield() {
   // ---- メインループ：ノーツの落下、泡の上昇、衝突判定 ----
   var lastFrameTime = null;
   function gameLoop(ts) {
-    if (document.getElementById('scene-studio').classList.contains('hidden')) {
+    if (document.getElementById('scene-studio-play').classList.contains('hidden')) {
       lastFrameTime = null;
       requestAnimationFrame(gameLoop);
       return;
@@ -322,20 +323,130 @@ function buildPlayfield() {
   }
 }
 
-export function openStudio() {
+// ---- Studio 曲一覧（デザインはJukeboxに準拠） ----
+function drawSparkline(canvas, history) {
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!history || history.length === 0) {
+    ctx.strokeStyle = 'rgba(169,164,150,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(4, h / 2);
+    ctx.lineTo(w - 4, h / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    return;
+  }
+
+  var maxScore = 100;
+  ctx.strokeStyle = 'rgba(232,150,66,0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  history.forEach(function (score, i) {
+    var x = 4 + (i / Math.max(1, history.length - 1)) * (w - 8);
+    var y = h - 4 - (score / maxScore) * (h - 8);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function renderStudioSongList() {
+  var list = document.getElementById('studio-song-list');
+  if (!list) return;
+  list.innerHTML = '';
+  list.textContent = '読み込み中…';
+
+  studioDB.getAllSongs().then(function (songs) {
+    list.innerHTML = '';
+    if (!songs || songs.length === 0) {
+      var empty = document.createElement('div');
+      empty.style.cssText = "font-family:'Yomogi', cursive; font-size:13px; color:#a99f8c; padding:16px 4px;";
+      empty.textContent = 'まだ曲がありません。ホーム画面のIMPORTから取り込んでください。';
+      list.appendChild(empty);
+      return;
+    }
+
+    songs.forEach(function (entry, i) {
+      var row = document.createElement('div');
+      row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid rgba(232,150,66,0.4);";
+
+      var title = document.createElement('div');
+      title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      title.textContent = entry.name;
+
+      var playBtn = document.createElement('div');
+      playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
+      playBtn.textContent = '▶';
+      playBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openStudioPlay(entry); // 再生は行わず、設定したスキンのゲーム画面へ飛ぶ
+      });
+
+      var graphCanvas = document.createElement('canvas');
+      graphCanvas.style.cssText = "flex-shrink:0; width:56px; height:24px;";
+
+      var delBtn = document.createElement('div');
+      delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var confirmed = window.confirm('「' + entry.name + '」を削除します。本当によろしいですか？');
+        if (!confirmed) return;
+        studioDB.deleteSong(entry.id).then(function () {
+          renderStudioSongList();
+        }).catch(function (err) { console.error('delete failed:', err); });
+      });
+
+      row.appendChild(title);
+      row.appendChild(playBtn);
+      row.appendChild(graphCanvas);
+      row.appendChild(delBtn);
+      list.appendChild(row);
+
+      drawSparkline(graphCanvas, entry.scoreHistory);
+    });
+  }).catch(function (err) {
+    console.error('studio song list load error:', err);
+    list.textContent = '曲一覧の読み込みに失敗しました。';
+  });
+}
+
+// Studioボタンを押した時に開く、曲一覧画面
+export function openStudioList() {
+  document.getElementById('scene-home').classList.add('hidden');
+  document.getElementById('scene-studio-list').classList.remove('hidden');
+  renderStudioSongList();
+}
+
+export function closeStudioList() {
+  document.getElementById('scene-studio-list').classList.add('hidden');
+  document.getElementById('scene-home').classList.remove('hidden');
+}
+
+// 曲一覧で再生ボタンを押した時に開く、実際のゲーム画面(現時点では水スキンのみ)
+export function openStudioPlay(songEntry) {
   // 現時点では水スキンのみ実装。将来的にはgetCurrentSkinId()の値でここを分岐する。
   var skinId = getCurrentSkinId();
   if (!built) {
     buildPlayfield();
     built = true;
   }
-  document.getElementById('scene-home').classList.add('hidden');
-  document.getElementById('scene-studio').classList.remove('hidden');
+  document.getElementById('scene-studio-list').classList.add('hidden');
+  document.getElementById('scene-studio-play').classList.remove('hidden');
 }
 
-export function closeStudio() {
-  document.getElementById('scene-studio').classList.add('hidden');
-  document.getElementById('scene-home').classList.remove('hidden');
+export function closeStudioPlay() {
+  document.getElementById('scene-studio-play').classList.add('hidden');
+  document.getElementById('scene-studio-list').classList.remove('hidden');
+  renderStudioSongList(); // 一覧に戻った時、最新の状態(削除等)に合わせて再描画
 }
 
 export function initStudio() {
@@ -343,14 +454,21 @@ export function initStudio() {
   if (btnStudio) {
     btnStudio.addEventListener('click', function (e) {
       e.stopPropagation();
-      openStudio();
+      openStudioList();
     });
   }
-  var closeBtn = document.getElementById('studio-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', function (e) {
+  var listCloseBtn = document.getElementById('studio-list-close');
+  if (listCloseBtn) {
+    listCloseBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      closeStudio();
+      closeStudioList();
+    });
+  }
+  var playCloseBtn = document.getElementById('studio-close');
+  if (playCloseBtn) {
+    playCloseBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeStudioPlay();
     });
   }
 }
