@@ -385,15 +385,13 @@ function renderStudioSongList() {
 
 // Studioボタンを押した時に開く、曲一覧画面
 export function openStudioList() {
-  document.getElementById('scene-home').classList.add('hidden');
-  document.getElementById('scene-studio-list').classList.remove('hidden');
+  document.getElementById('studio-list-overlay').style.display = 'flex';
   fadeBgm(0, 500);
   renderStudioSongList();
 }
 
 export function closeStudioList() {
-  document.getElementById('scene-studio-list').classList.add('hidden');
-  document.getElementById('scene-home').classList.remove('hidden');
+  document.getElementById('studio-list-overlay').style.display = 'none';
   fadeBgm(0.7, 500); // Jukeboxと同じ基準音量に戻す
 }
 
@@ -629,7 +627,8 @@ export function openStudioPlay(songEntry) {
     buildPlayfield();
     built = true;
   }
-  document.getElementById('scene-studio-list').classList.add('hidden');
+  document.getElementById('studio-list-overlay').style.display = 'none';
+  document.getElementById('scene-home').classList.add('hidden');
   document.getElementById('scene-studio-play').classList.remove('hidden');
 
   if (!songEntry || !songEntry.songData || songEntry.songData.length === 0) return;
@@ -681,7 +680,8 @@ export function closeStudioPlay() {
   stopSongPlayback();
   document.getElementById('studio-countdown').style.display = 'none';
   document.getElementById('scene-studio-play').classList.add('hidden');
-  document.getElementById('scene-studio-list').classList.remove('hidden');
+  document.getElementById('scene-home').classList.remove('hidden');
+  document.getElementById('studio-list-overlay').style.display = 'flex';
   renderStudioSongList(); // 一覧に戻った時、最新の状態(削除等)に合わせて再描画
 }
 
