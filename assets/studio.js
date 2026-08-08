@@ -14,7 +14,7 @@ var FALL_DURATION_MS = 2600; // ノーツが上端から鍵盤に届くまでの
 var MISS_GRACE_MS = 600;     // 鍵盤に到達してから、取りこぼしとして静かに消えるまでの猶予
 var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
 var JUDGE_LINE_OFFSET = 15;  // 鍵盤上端から判定ラインまでの距離(px)
-var HIT_WINDOW_PX = 40;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める
+var HIT_WINDOW_PX = 30;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める(これより離れた早いタップ等は無効)
 var JUST_WINDOW_PX = 12;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)
 var HOLD_THRESHOLD_MS = 350; // これより長い音符は「押しっぱなし」が必要なホールドノーツとして扱う
 
@@ -239,8 +239,13 @@ function buildPlayfield() {
 
   document.getElementById('studio-abort-btn').addEventListener('click', async function (e) {
     e.stopPropagation();
+    pauseSongPlayback(); // 押した瞬間に、音・ノーツの動きをすべて止める
     var confirmed = await window.showCustomConfirm('演奏を中断します。終了しますか？');
-    if (confirmed) closeStudioPlay();
+    if (confirmed) {
+      closeStudioPlay();
+    } else {
+      resumeSongPlayback(); // キャンセルしたら、止めていた分を補正して再開する
+    }
   });
 
   // ---- メインループ：ノーツの落下、泡の上昇、衝突判定 ----
@@ -254,6 +259,7 @@ function buildPlayfield() {
     if (lastFrameTime == null) lastFrameTime = ts;
     var dt = (ts - lastFrameTime) / 1000;
     lastFrameTime = ts;
+    if (currentSong.paused) dt = 0; // 一時停止中はノーツ・泡の動きを止める(時計だけは進めない)
 
     laneStates.forEach(function (state, laneIndex) {
       var fallArea = document.getElementById('studio-fall-' + laneIndex);
@@ -683,6 +689,8 @@ var currentSong = {
   audioIntervalId: null,
   chartIntervalId: null,
   playing: false,
+  paused: false,
+  pauseStartCtxTime: 0,
   score: 0,
   lastFishMilestone: 0
 };
@@ -729,6 +737,24 @@ function spawnBackgroundFish() {
     else fish.style.right = (playfieldWidth + 40) + 'px';
   });
   setTimeout(function () { if (fish.parentNode) fish.remove(); }, duration * 1000 + 200);
+}
+
+// 中断ボタンを押した瞬間などに、音・ノーツの動きをすべて即座に止める(まだ完全終了はしない)
+function pauseSongPlayback() {
+  if (!currentSong.playing || currentSong.paused) return;
+  currentSong.paused = true;
+  if (currentSong.ctx) currentSong.pauseStartCtxTime = currentSong.ctx.currentTime;
+  stopAllNotes(); // 今鳴っている音も止める
+}
+
+// 一時停止していた演奏を、止めていた分の時間のズレを補正しながら再開する
+function resumeSongPlayback() {
+  if (!currentSong.playing || !currentSong.paused) return;
+  if (currentSong.ctx) {
+    var pausedDuration = currentSong.ctx.currentTime - currentSong.pauseStartCtxTime;
+    currentSong.startCtxTime += pausedDuration; // 止めていた分だけ基準時刻をずらし、飛び進むのを防ぐ
+  }
+  currentSong.paused = false;
 }
 
 function stopSongPlayback() {
@@ -827,7 +853,7 @@ function spawnRealNote(entry) {
 function startAudioScheduler() {
   var ctx = currentSong.ctx;
   function tick() {
-    if (!currentSong.playing) return;
+    if (!currentSong.playing || currentSong.paused) return;
     var elapsedMs = (ctx.currentTime - currentSong.startCtxTime) * 1000;
     var notes = currentSong.audioNotes;
     while (currentSong.audioIndex < notes.length && notes[currentSong.audioIndex].time <= elapsedMs) {
@@ -850,7 +876,7 @@ function startAudioScheduler() {
 function startChartScheduler() {
   var ctx = currentSong.ctx;
   function tick() {
-    if (!currentSong.playing) return;
+    if (!currentSong.playing || currentSong.paused) return;
     var elapsedMs = (ctx.currentTime - currentSong.startCtxTime) * 1000;
     var chart = currentSong.chart;
     while (currentSong.chartIndex < chart.length && (chart[currentSong.chartIndex].time - FALL_DURATION_MS) <= elapsedMs) {
