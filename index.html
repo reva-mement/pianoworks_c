@@ -44,13 +44,6 @@
     object-fit:cover;
     object-position:center;
   }
-  .sky-overlay{
-    position:absolute;inset:0;
-    background:rgba(10,12,30,0);
-    pointer-events:none;
-    transition:background 8s linear;
-    z-index:1;
-  }
   .scrim{
     position:absolute;top:0;left:0;right:0;height:30%;
     background:linear-gradient(to bottom, rgba(20,17,12,0.28), rgba(20,17,12,0));
@@ -453,7 +446,6 @@
     <video class="art" autoplay muted loop playsinline>
       <source src="assets/home-bg.mp4" type="video/mp4">
     </video>
-    <div class="sky-overlay" id="sky-overlay-title"></div>
     <div class="scrim"></div>
     <div class="titlewrap">
       <div class="eyebrow">P I A N O W O R K S</div>
@@ -466,7 +458,6 @@
     <video class="art" autoplay muted loop playsinline preload="auto" id="homeVideo">
       <source src="assets/opening-bg.mp4" type="video/mp4">
     </video>
-    <div class="sky-overlay" id="sky-overlay-home"></div>
     <div class="scrim"></div>
     <div id="datetime-display" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); left:14px; font-family:'Cormorant Garamond', serif; font-style:italic; font-size:15px; color:#efe4cf; text-shadow:0 1px 4px rgba(0,0,0,0.6); z-index:15; pointer-events:none;"></div>
     <div id="btn-piano-mark" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
@@ -608,6 +599,7 @@
   import { initJukebox, fadeBgm } from './assets/jukebox.js';
   import { initSkinList, openSkinList } from './assets/skin.js';
   import { initStudio } from './assets/studio.js';
+  import { getPianoCtx, loadPianoSamples } from './assets/audio-engine.js';
 
   initSkinList();
   initStudio();
@@ -729,49 +721,21 @@
   updateDateTime();
   setInterval(updateDateTime, 1000 * 15); // 15秒ごとに確認し、分が変わっていれば表示を更新する
 
-  // ---- 現在時刻に合わせて、背景動画の上に時間帯の色合い(明暗)を重ねる ----
-  // 時刻(0〜24) → [R,G,B,不透明度] の基準点。この間を線形に補間する
-  var SKY_STOPS = [
-    [0,  [8, 10, 26, 0.55]],   // 深夜
-    [4,  [8, 10, 26, 0.55]],
-    [6,  [255, 150, 90, 0.28]],  // 夜明け(暖色)
-    [8,  [255, 235, 210, 0.05]], // 朝
-    [11, [255, 255, 255, 0]],    // 昼(ほぼ無色)
-    [16, [255, 255, 255, 0]],
-    [18, [255, 140, 90, 0.3]],   // 夕暮れ(暖色)
-    [20, [40, 25, 65, 0.4]],     // 宵
-    [23, [8, 10, 26, 0.55]],
-    [24, [8, 10, 26, 0.55]]
-  ];
-  function computeSkyColor(){
-    var now = new Date();
-    var hour = now.getHours() + now.getMinutes() / 60;
-    for (var i = 0; i < SKY_STOPS.length - 1; i++){
-      var a = SKY_STOPS[i], b = SKY_STOPS[i + 1];
-      if (hour >= a[0] && hour <= b[0]){
-        var t = (hour - a[0]) / (b[0] - a[0] || 1);
-        var c = a[1].map(function(v, idx){ return v + (b[1][idx] - v) * t; });
-        return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + c[3].toFixed(2) + ')';
-      }
-    }
-    return 'rgba(8,10,26,0.55)';
-  }
-  function updateSkyOverlay(){
-    var color = computeSkyColor();
-    ['sky-overlay-title', 'sky-overlay-home'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (el) el.style.background = color;
-    });
-  }
-  updateSkyOverlay();
-  setInterval(updateSkyOverlay, 1000 * 60 * 5); // 5分ごとに更新(background自体に8秒のtransitionがあるのでなめらかに変わる)
-
   function goToHome(){
     if(started) return;
     started = true;
     bgm.volume = 0.7;
     bgm.currentTime = 0;
     bgm.play().catch(()=>{});
+
+    // Jukebox初回起動時に鳴っていた「ぶつっ」というノイズは、ピアノ用の音声の仕組みを
+    // 初めて起動する瞬間に出るもの。タップ操作というユーザー操作のタイミングで前もって
+    // 済ませておくことで、実際にJukeboxを開いた時には既に準備が終わった状態にする
+    try {
+      var ctx = getPianoCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      loadPianoSamples(); // Jukeboxを開く前に、バックグラウンドで先に読み込みを済ませておく
+    } catch (err) { /* 失敗しても致命的ではないので無視 */ }
 
     sceneTitle.classList.add('hidden');
     sceneTitle.addEventListener('transitionend', function onEnd(e){
