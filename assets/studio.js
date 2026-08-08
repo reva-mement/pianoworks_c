@@ -330,6 +330,16 @@ function buildPlayfield() {
       state.notes = state.notes.filter(function (record) { return !record.popped; });
     });
 
+    // 音・見た目のノーツ生成が両方とも終わり、画面上にノーツが1つも残っていなければ、曲は完了
+    if (currentSong.playing && !currentSong.paused &&
+        currentSong.audioIntervalId === null && currentSong.chartIntervalId === null) {
+      var anyNotesLeft = laneStates.some(function (state) { return state.notes.length > 0 || state.bubbles.length > 0; });
+      if (!anyNotesLeft) {
+        currentSong.playing = false; // 二重に呼ばれないよう先に倒しておく
+        closeStudioPlay(); // フェードで一覧に戻る(内部でstopSongPlayback→最高スコア保存も行われる)
+      }
+    }
+
     requestAnimationFrame(gameLoop);
   }
   if (!loopStarted) {
@@ -356,7 +366,6 @@ function playHitFeedback(record, judgment) {
   if (!record || record.pitch == null) return;
   var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
   playNote(record.pitch, v, record.duration);
-  console.log('[hit] pitch=' + record.pitch + ' judgment=' + judgment);
   addScore(judgment === 'just' ? SCORE_PER_HIT * 2 : SCORE_PER_HIT);
 }
 
@@ -501,15 +510,21 @@ function renderStudioSongList() {
 
     songs.forEach(function (entry, i) {
       var row = document.createElement('div');
-      row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid rgba(232,150,66,0.4);";
+      row.style.cssText = "display:flex; align-items:center; gap:25px; padding:30px 5px; border-bottom:1px solid rgba(232,150,66,0.4);";
 
       var title = document.createElement('div');
-      title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      title.style.cssText = "font-family:'Yomogi', cursive; font-size:20px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
       title.textContent = entry.name;
       attachTitleExpand(title, entry.name);
 
+      var maxScoreBox = document.createElement('div');
+      maxScoreBox.style.cssText = "flex-shrink:0; display:flex; flex-direction:column; align-items:center; font-family:'Yomogi', cursive; color:#e8a24a;";
+      maxScoreBox.innerHTML =
+        '<div style="font-size:11px; letter-spacing:1px; color:#a99f8c;">MAX<br>SCORE</div>' +
+        '<div style="font-size:18px; margin-top:2px;">' + (entry.maxScore || 0) + '</div>';
+
       var playBtn = document.createElement('div');
-      playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
+      playBtn.style.cssText = "flex-shrink:0; width:70px; height:70px; border-radius:50%; border:2px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:28px; cursor:pointer;";
       playBtn.textContent = '▶';
       playBtn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -517,10 +532,10 @@ function renderStudioSongList() {
       });
 
       var graphCanvas = document.createElement('canvas');
-      graphCanvas.style.cssText = "flex-shrink:0; width:56px; height:24px;";
+      graphCanvas.style.cssText = "flex-shrink:0; width:140px; height:60px;";
 
       var delBtn = document.createElement('div');
-      delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
+      delBtn.style.cssText = "flex-shrink:0; width:60px; height:60px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:38px; cursor:pointer;";
       delBtn.textContent = '×';
       delBtn.addEventListener('click', async function (e) {
         e.stopPropagation();
@@ -532,6 +547,7 @@ function renderStudioSongList() {
       });
 
       row.appendChild(title);
+      row.appendChild(maxScoreBox);
       row.appendChild(playBtn);
       row.appendChild(graphCanvas);
       row.appendChild(delBtn);
@@ -692,7 +708,9 @@ var currentSong = {
   paused: false,
   pauseStartCtxTime: 0,
   score: 0,
-  lastFishMilestone: 0
+  lastFishMilestone: 0,
+  entryId: null,
+  entryMaxScore: 0
 };
 
 var SCORE_PER_HIT = 100;
@@ -769,6 +787,19 @@ function stopSongPlayback() {
     state.notes = [];
     state.bubbles = [];
   });
+  saveMaxScoreIfNeeded();
+}
+
+// 中断・完了に関わらず、今回のスコアが過去の最高を上回っていれば保存する
+function saveMaxScoreIfNeeded() {
+  if (currentSong.entryId == null) return;
+  if (currentSong.score <= currentSong.entryMaxScore) return;
+  studioDB.getAllSongs().then(function (songs) {
+    var target = songs.filter(function (s) { return s.id === currentSong.entryId; })[0];
+    if (!target) return;
+    target.maxScore = currentSong.score;
+    return studioDB.updateSong(target);
+  }).catch(function (err) { console.error('max score save failed:', err); });
 }
 
 // 見た目のノーツを1つ生成し、上端から鍵盤へ向けて落とし始める
@@ -860,7 +891,6 @@ function startAudioScheduler() {
       var n = notes[currentSong.audioIndex];
       var v = Math.max(1, Math.min(100, n.velocity * currentSong.gainCompensation));
       playNote(n.pitch, v, n.duration);
-      console.log('[auto] pitch=' + n.pitch);
       currentSong.audioIndex++;
     }
     if (currentSong.audioIndex >= notes.length) {
@@ -964,15 +994,14 @@ export function openStudioPlay(songEntry) {
       currentSong.ctx = ctx;
       currentSong.audioNotes = autoNotes;
       chart = mergeRapidRepeats(chart);
-      console.log('[debug] 主旋律候補=' + melodyPitches.length + '個(全' + songEntry.songData.length + '音符中)');
-      console.log('[debug] レーンの範囲: ' + windowStart + '〜' + (windowStart + LANES - 1));
-      console.log('[debug] 総音符数=' + songEntry.songData.length + ' / レーン内(叩かないと鳴らない、連打まとめ後)=' + chart.length + ' / 範囲外(自動再生)=' + autoNotes.length + ' / 自動再生の割合=' + Math.round(autoNotes.length / songEntry.songData.length * 100) + '%');
       currentSong.chart = chart;
       currentSong.gainCompensation = songEntry.gainCompensation || 1;
       currentSong.audioIndex = 0;
       currentSong.chartIndex = 0;
       currentSong.score = 0;
       currentSong.lastFishMilestone = 0;
+      currentSong.entryId = songEntry.id;
+      currentSong.entryMaxScore = songEntry.maxScore || 0;
       var scoreEl = document.getElementById('studioScoreValue');
       if (scoreEl) scoreEl.textContent = '0';
 

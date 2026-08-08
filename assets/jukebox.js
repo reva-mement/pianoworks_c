@@ -64,6 +64,16 @@ function makeSongStore(storeName) {
           req.onerror = function () { reject(req.error); };
         });
       });
+    },
+    updateSong: function (entry) {
+      return openSharedDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction([storeName], 'readwrite');
+          var req = tx.objectStore(storeName).put(entry);
+          req.onsuccess = function () { resolve(); };
+          req.onerror = function () { reject(req.error); };
+        });
+      });
     }
   };
 }
