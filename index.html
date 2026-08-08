@@ -366,6 +366,7 @@
       <source src="assets/opening-bg.mp4" type="video/mp4">
     </video>
     <div class="scrim"></div>
+    <div id="datetime-display" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); left:14px; font-family:'Yomogi', cursive; font-size:13px; color:#efe4cf; text-shadow:0 1px 4px rgba(0,0,0,0.6); z-index:15; pointer-events:none;"></div>
     <div id="btn-piano-mark" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; transition:transform 0.15s ease-out;">
       <img src="assets/piano-icon.png" alt="" style="width:60%; height:60%; object-fit:contain; pointer-events:none;">
     </div>
@@ -585,6 +586,23 @@
   const homeVideo = document.getElementById('homeVideo');
   const bgm = document.getElementById('bgm');
   let started = false;
+
+  // ---- 左上の日時表示 ----
+  var WEEKDAY_KANJI = ['日', '月', '火', '水', '木', '金', '土'];
+  function updateDateTime(){
+    var el = document.getElementById('datetime-display');
+    if (!el) return;
+    var now = new Date();
+    var y = now.getFullYear();
+    var m = now.getMonth() + 1;
+    var d = now.getDate();
+    var w = WEEKDAY_KANJI[now.getDay()];
+    var hh = String(now.getHours()).padStart(2, '0');
+    var mm = String(now.getMinutes()).padStart(2, '0');
+    el.textContent = y + '年' + m + '月' + d + '日(' + w + ') ' + hh + ':' + mm;
+  }
+  updateDateTime();
+  setInterval(updateDateTime, 1000 * 15); // 15秒ごとに確認し、分が変わっていれば表示を更新する
 
   function goToHome(){
     if(started) return;
