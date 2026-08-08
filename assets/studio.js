@@ -531,32 +531,31 @@ function renderStudioSongList() {
 
     songs.forEach(function (entry, i) {
       var row = document.createElement('div');
-      row.style.cssText = "display:flex; align-items:center; gap:25px; padding:30px 5px; border-bottom:1px solid rgba(232,150,66,0.4);";
+      row.style.cssText = "display:flex; align-items:center; gap:10px; padding:12px 2px; border-bottom:1px solid rgba(232,150,66,0.4);";
 
       var title = document.createElement('div');
-      title.style.cssText = "font-family:'Yomogi', cursive; font-size:20px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      title.style.cssText = "font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
       title.textContent = entry.name;
       attachTitleExpand(title, entry.name);
 
-      var maxScoreBox = document.createElement('div');
-      maxScoreBox.style.cssText = "flex-shrink:0; display:flex; flex-direction:column; align-items:center; font-family:'Yomogi', cursive; color:#e8a24a;";
-      maxScoreBox.innerHTML =
-        '<div style="font-size:11px; letter-spacing:1px; color:#a99f8c;">MAX<br>SCORE</div>' +
-        '<div style="font-size:18px; margin-top:2px;">' + (entry.maxScore || 0) + '</div>';
-
       var playBtn = document.createElement('div');
-      playBtn.style.cssText = "flex-shrink:0; width:70px; height:70px; border-radius:50%; border:2px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:28px; cursor:pointer;";
+      playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
       playBtn.textContent = '▶';
       playBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         openStudioPlay(entry); // 再生は行わず、設定したスキンのゲーム画面へ飛ぶ
       });
 
-      var graphCanvas = document.createElement('canvas');
-      graphCanvas.style.cssText = "flex-shrink:0; width:140px; height:60px;";
+      var detailBtn = document.createElement('div');
+      detailBtn.style.cssText = "flex-shrink:0; font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; padding:4px 8px; border:1px solid rgba(169,164,150,0.4); border-radius:5px; cursor:pointer; white-space:nowrap;";
+      detailBtn.textContent = '詳細';
+      detailBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openStudioDetail(entry);
+      });
 
       var delBtn = document.createElement('div');
-      delBtn.style.cssText = "flex-shrink:0; width:60px; height:60px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:38px; cursor:pointer;";
+      delBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center; color:#a99f8c; font-size:16px; cursor:pointer;";
       delBtn.textContent = '×';
       delBtn.addEventListener('click', async function (e) {
         e.stopPropagation();
@@ -568,13 +567,10 @@ function renderStudioSongList() {
       });
 
       row.appendChild(title);
-      row.appendChild(maxScoreBox);
       row.appendChild(playBtn);
-      row.appendChild(graphCanvas);
+      row.appendChild(detailBtn);
       row.appendChild(delBtn);
       list.appendChild(row);
-
-      drawSparkline(graphCanvas, entry.scoreHistory);
     });
   }).catch(function (err) {
     console.error('studio song list load error:', err);
@@ -1053,6 +1049,15 @@ export function closeStudioPlay() {
   renderStudioSongList(); // 一覧に戻った時、最新の状態(削除等)に合わせて再描画
 }
 
+// 曲の詳細(MAX SCORE・accuracyグラフ)をモーダルで表示する
+function openStudioDetail(entry) {
+  document.getElementById('studio-detail-title').textContent = entry.name;
+  document.getElementById('studio-detail-maxscore').textContent = entry.maxScore || 0;
+  document.getElementById('studio-detail-overlay').style.display = 'flex';
+  var canvas = document.getElementById('studio-detail-canvas');
+  requestAnimationFrame(function () { drawSparkline(canvas, entry.scoreHistory); });
+}
+
 export function initStudio() {
   var btnStudio = document.getElementById('btn-studio');
   if (btnStudio) {
@@ -1066,6 +1071,13 @@ export function initStudio() {
     listCloseBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       closeStudioList();
+    });
+  }
+  var detailCloseBtn = document.getElementById('studio-detail-close');
+  if (detailCloseBtn) {
+    detailCloseBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      document.getElementById('studio-detail-overlay').style.display = 'none';
     });
   }
   // studio-closeボタンは廃止。closeStudioPlay()自体は他の経路から呼べるよう残す
