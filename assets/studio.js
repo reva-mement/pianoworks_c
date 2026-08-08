@@ -74,6 +74,7 @@ function abortHold(record) {
   record.el.style.transition = 'opacity 0.25s ease-out';
   record.el.style.opacity = '0';
   (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 260); })(record.el);
+  currentSong.accuracyHistory.push(0);
 }
 
 
@@ -295,6 +296,7 @@ function buildPlayfield() {
           record.el.style.transition = 'opacity 0.3s ease-out';
           record.el.style.opacity = '0';
           (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 320); })(record.el);
+          currentSong.accuracyHistory.push(0);
         }
       });
 
@@ -367,6 +369,7 @@ function playHitFeedback(record, judgment) {
   var v = Math.max(1, Math.min(100, record.velocity * (record.gainCompensation || 1)));
   playNote(record.pitch, v, record.duration);
   addScore(judgment === 'just' ? SCORE_PER_HIT * 2 : SCORE_PER_HIT);
+  currentSong.accuracyHistory.push(judgment === 'just' ? 100 : 70);
 }
 
 function popNote(note, area, record, judgment, opts) {
@@ -468,25 +471,43 @@ function drawSparkline(canvas, history) {
   var w = rect.width, h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
-  if (!history || history.length === 0) {
-    ctx.strokeStyle = 'rgba(169,164,150,0.35)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 3]);
-    ctx.beginPath();
-    ctx.moveTo(4, h / 2);
-    ctx.lineTo(w - 4, h / 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    return;
-  }
+  var labelWidth = 20;
+  var bottomPad = 4;
+  var topPad = 4;
+  var usableHeight = h - topPad - bottomPad;
 
-  var maxScore = 100;
-  ctx.strokeStyle = 'rgba(232,150,66,0.85)';
+  // 0/20/40/60/80/100%の目盛り線とラベル(PC版と同じ)
+  var gridValues = [0, 20, 40, 60, 80, 100];
+  ctx.strokeStyle = 'rgba(169,164,150,0.35)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 2]);
+  gridValues.forEach(function (v) {
+    var y = h - bottomPad - (v / 100) * usableHeight;
+    ctx.beginPath();
+    ctx.moveTo(labelWidth, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = 'rgba(169,164,150,0.7)';
+  ctx.font = '8px sans-serif';
+  ctx.textBaseline = 'middle';
+  gridValues.forEach(function (v) {
+    var y = h - bottomPad - (v / 100) * usableHeight;
+    ctx.fillText(v + '%', 0, y);
+  });
+
+  if (!history || history.length === 0) return;
+
+  // 叩くたびの正確さ(0/60/70/80/90/100)を線でつなぐ(PC版と同じ配色)
+  var stepX = Math.max(2, (w - labelWidth) / Math.max(1, history.length - 1));
+  ctx.strokeStyle = '#b87333';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  history.forEach(function (score, i) {
-    var x = 4 + (i / Math.max(1, history.length - 1)) * (w - 8);
-    var y = h - 4 - (score / maxScore) * (h - 8);
+  history.forEach(function (v, i) {
+    var x = labelWidth + i * stepX;
+    var y = h - bottomPad - (v / 100) * usableHeight;
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
@@ -710,7 +731,8 @@ var currentSong = {
   score: 0,
   lastFishMilestone: 0,
   entryId: null,
-  entryMaxScore: 0
+  entryMaxScore: 0,
+  accuracyHistory: [] // 1回のプレイの中で、叩くたびの正確さ(0/60/70/80/90/100)を記録する
 };
 
 var SCORE_PER_HIT = 100;
@@ -793,13 +815,18 @@ function stopSongPlayback() {
 // 中断・完了に関わらず、今回のスコアが過去の最高を上回っていれば保存する
 function saveMaxScoreIfNeeded() {
   if (currentSong.entryId == null) return;
-  if (currentSong.score <= currentSong.entryMaxScore) return;
+  if (currentSong.accuracyHistory.length === 0) return; // 一度も叩かないまま終わった場合は保存しない
+  var newScore = currentSong.score;
+  var newHistory = currentSong.accuracyHistory.slice();
   studioDB.getAllSongs().then(function (songs) {
     var target = songs.filter(function (s) { return s.id === currentSong.entryId; })[0];
     if (!target) return;
-    target.maxScore = currentSong.score;
+    target.scoreHistory = newHistory; // グラフは常に最新のプレイの記録に更新する
+    if (newScore > (target.maxScore || 0)) {
+      target.maxScore = newScore;
+    }
     return studioDB.updateSong(target);
-  }).catch(function (err) { console.error('max score save failed:', err); });
+  }).catch(function (err) { console.error('score save failed:', err); });
 }
 
 // 見た目のノーツを1つ生成し、上端から鍵盤へ向けて落とし始める
@@ -1002,6 +1029,7 @@ export function openStudioPlay(songEntry) {
       currentSong.lastFishMilestone = 0;
       currentSong.entryId = songEntry.id;
       currentSong.entryMaxScore = songEntry.maxScore || 0;
+      currentSong.accuracyHistory = [];
       var scoreEl = document.getElementById('studioScoreValue');
       if (scoreEl) scoreEl.textContent = '0';
 
