@@ -21,13 +21,21 @@ function renderStoryList() {
     title.textContent = story.title;
 
     var status = document.createElement('div');
-    status.style.cssText = "flex-shrink:0; font-family:'Yomogi', cursive; font-size:12px; color:#e8a24a;";
+    status.style.cssText = "flex-shrink:0; font-family:'Yomogi', cursive; font-size:12px; color:#e8a24a; margin-right:10px;";
     status.textContent = story.available ? '' : '近日公開';
 
     row.appendChild(title);
     row.appendChild(status);
 
     if (story.available) {
+      var playBtn = document.createElement('div');
+      playBtn.style.cssText = "flex-shrink:0; width:28px; height:28px; border-radius:50%; border:1px solid rgba(232,150,66,0.7); display:flex; align-items:center; justify-content:center; color:#efe4cf; font-size:12px; cursor:pointer;";
+      playBtn.textContent = '▶';
+      playBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openStoryRead(story);
+      });
+      row.appendChild(playBtn);
       row.addEventListener('click', function () {
         openStoryRead(story);
       });
@@ -49,8 +57,21 @@ export function closeStoryList() {
 
 export function openStoryRead(story) {
   // 現時点では中身はダミー固定。将来的にはstory.idごとに動画・曲・テキストを出し分ける
-  document.getElementById('scene-story-list').classList.add('hidden');
-  document.getElementById('scene-story-read').classList.remove('hidden');
+  var listScene = document.getElementById('scene-story-list');
+  var readScene = document.getElementById('scene-story-read');
+
+  readScene.classList.remove('hidden'); // 先にreadを見せておき、その上で一覧ページがめくれて消える
+  readScene.style.zIndex = '1';
+  listScene.style.zIndex = '2';
+  listScene.classList.add('page-turn-left');
+
+  listScene.addEventListener('animationend', function onEnd() {
+    listScene.removeEventListener('animationend', onEnd);
+    listScene.classList.add('hidden');
+    listScene.classList.remove('page-turn-left');
+    listScene.style.zIndex = '';
+    readScene.style.zIndex = '';
+  });
 }
 
 export function closeStoryRead() {
