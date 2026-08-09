@@ -470,11 +470,15 @@ function stopJukeboxPlayback() {
 // 再生中の曲を一時停止する(位置は保持したまま音だけ止める)
 function pausePlayback() {
   if (!currentPlayback.playing || currentPlayback.paused) return;
-  currentPlayback.paused = true;
   if (currentPlayback.index === 'bonus') {
+    currentPlayback.paused = true;
     if (bonusAudioEl) bonusAudioEl.pause();
   } else {
+    // ★ 必ずpaused=trueにする前に計算する。先にpausedを立ててしまうと、
+    //   getElapsedMs()が「まだ更新していない古いfrozenElapsedMs」を返してしまい、
+    //   シークバーが0%にリセットされたように見えるバグになる
     playbackState.frozenElapsedMs = getElapsedMs();
+    currentPlayback.paused = true;
     stopAllNotes();
   }
   renderJukeboxList();
@@ -483,13 +487,30 @@ function pausePlayback() {
 // 一時停止していた曲を、止めた位置から再開する
 function resumePlayback() {
   if (!currentPlayback.playing || !currentPlayback.paused) return;
-  currentPlayback.paused = false;
   if (currentPlayback.index === 'bonus') {
+    currentPlayback.paused = false;
     if (bonusAudioEl) bonusAudioEl.play().catch(function (err) { console.error('resume failed:', err); });
-  } else if (playbackState.ctx) {
-    playbackState.startCtxTime = playbackState.ctx.currentTime - playbackState.frozenElapsedMs / 1000;
+    renderJukeboxList();
+    return;
   }
-  renderJukeboxList();
+
+  var ctx = playbackState.ctx;
+  function finishResume() {
+    if (ctx) {
+      playbackState.startCtxTime = ctx.currentTime - playbackState.frozenElapsedMs / 1000;
+    }
+    currentPlayback.paused = false;
+    renderJukeboxList();
+  }
+  // サスペンドしていたら、再開を確実に待ってから続きを計算する(音が鳴らない・遅れる対策)
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().then(finishResume).catch(function (err) {
+      console.error('resume failed:', err);
+      finishResume();
+    });
+  } else {
+    finishResume();
+  }
 }
 
 function playBonusTrack() {

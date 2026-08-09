@@ -118,6 +118,9 @@ function velocityToLayer(v) {
 // pitch: MIDIノート番号, velocity: 0-100スケール, durationMs: 目安の長さ(省略時は自然な余韻)
 export function playNote(pitch, velocity, durationMs) {
   var ctx = getPianoCtx();
+  // PC版のplayNoteと同じ、念のための防御的な確認。一時停止明けなどでサスペンド状態が
+  // 残っていると、無音のまま鳴らなくなることがあるため、毎回ここで起こしておく
+  if (ctx.state === 'suspended') { ctx.resume(); }
   var now = ctx.currentTime;
 
   // 同じ音程が既に鳴っていたら、まず素早く止める(連打時のノイズ対策。PC版と同じ)
