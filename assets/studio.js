@@ -11,7 +11,6 @@ var laneStates = [];
 var built = false;
 var loopStarted = false;
 var FALL_DURATION_MS = 2600; // ノーツが上端から鍵盤に届くまでの時間
-var MISS_GRACE_MS = 600;     // 鍵盤に到達してから、取りこぼしとして静かに消えるまでの猶予
 var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
 var JUDGE_LINE_OFFSET = 15;  // 鍵盤上端から判定ラインまでの距離(px)
 var HIT_WINDOW_PX = 30;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める(これより離れた早いタップ等は無効)
@@ -110,11 +109,11 @@ function buildPlayfield() {
   blackKeysLayer.id = 'studio-black-keys-layer';
   document.getElementById('scene-studio-play').appendChild(blackKeysLayer);
 
-  // 当たり判定ライン：下から「点線(Justゾーン下端)・実線(Justの中心)・点線(Justゾーン上端)」の3本
-  // 実線のタイミングで鍵盤をタップするとJustになる。点線2本はJUST_WINDOW_PXぶん外側の目安線。
+  // 当たり判定ライン：下から「点線(Hitゾーン下端)・実線(Justの中心)・点線(Hitゾーン上端)」の3本
+  // 実線のタイミングで鍵盤をタップするとJustになる。点線2本はHIT_WINDOW_PXぶん外側の目安線。
   var judgeLineLowerEl = document.createElement('div');
   judgeLineLowerEl.className = 'studio-hitzone-line-dashed';
-  judgeLineLowerEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET - JUST_WINDOW_PX) + 'px';
+  judgeLineLowerEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET - HIT_WINDOW_PX) + 'px';
   document.getElementById('scene-studio-play').appendChild(judgeLineLowerEl);
 
   var judgeLineEl = document.createElement('div');
@@ -124,7 +123,7 @@ function buildPlayfield() {
 
   var judgeLineUpperEl = document.createElement('div');
   judgeLineUpperEl.className = 'studio-hitzone-line-dashed';
-  judgeLineUpperEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET + JUST_WINDOW_PX) + 'px';
+  judgeLineUpperEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET + HIT_WINDOW_PX) + 'px';
   document.getElementById('scene-studio-play').appendChild(judgeLineUpperEl);
 
   // ---- ベロシティ推定 ----
@@ -336,24 +335,17 @@ function buildPlayfield() {
         } else {
           if (record.y + record.height > areaHeight) {
             record.y = areaHeight - record.height;
-            if (record.missDeadline === null || record.missDeadline === undefined) {
-              record.missDeadline = performance.now() + MISS_GRACE_MS;
+            if (!record.popped) {
+              // 取りこぼし：鍵盤の直前で留まらせず、その場で即フェードアウトさせて消す
+              record.popped = true;
+              record.el.style.transition = 'opacity 0.28s ease-out';
+              record.el.style.opacity = '0';
+              currentSong.accuracyHistory.push(0);
+              (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 300); })(record.el);
             }
           }
         }
         record.el.style.transform = 'translateY(' + record.y + 'px)';
-      });
-
-      // 取りこぼしたまま猶予時間を過ぎたノーツを、静かに片付ける
-      state.notes.forEach(function (record) {
-        if (record.popped) return;
-        if (record.missDeadline != null && performance.now() >= record.missDeadline) {
-          record.popped = true;
-          record.el.style.transition = 'opacity 0.3s ease-out';
-          record.el.style.opacity = '0';
-          (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 320); })(record.el);
-          currentSong.accuracyHistory.push(0);
-        }
       });
 
       state.bubbles.forEach(function (b) {
@@ -997,7 +989,6 @@ function spawnRealNote(entry) {
     holding: false,
     isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
     lane: entry.lane,
-    missDeadline: null,
     pitch: entry.pitch,
     velocity: entry.velocity,
     duration: entry.duration,
