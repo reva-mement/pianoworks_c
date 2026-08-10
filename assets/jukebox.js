@@ -3,7 +3,7 @@
 
 import { extractNotesFromMidi } from './midi-import.js';
 import { loadPianoSamples, playNote, getPianoCtx, stopAllNotes } from './audio-engine.js';
-import { getCurrentSkinId } from './skin.js';
+import { getCurrentSkinId, getSkinPartId } from './skin.js';
 
 // ---- IndexedDBによる永続化（本体のplaynote-db.jsと同じ考え方の簡易版） ----
 // JukeboxとStudioは、それぞれ別の記録として独立管理する(同じレコードを共有しない)。
@@ -270,7 +270,7 @@ function renderJukeboxList() {
 
   var bonusButtons = createPlayPauseStopButtons(bonusPlaying, bonusPlaying && currentPlayback.paused, playBonusTrack, stopJukeboxPlayback);
 
-  var isWaterSkinBonus = getCurrentSkinId() === 'water';
+  var isWaterSkinBonus = getSkinPartId('seekbar') === 'water';
   var bonusSeekTrack = document.createElement('div');
   var bonusSeekFill = document.createElement('div');
   if (isWaterSkinBonus) {
@@ -362,7 +362,7 @@ function renderJukeboxList() {
 
     var playPauseStopBtns = createPlayPauseStopButtons(isPlaying, isPlaying && currentPlayback.paused, function () { playSong(i); }, stopJukeboxPlayback);
 
-    var isWaterSkin = getCurrentSkinId() === 'water';
+    var isWaterSkin = getSkinPartId('seekbar') === 'water';
 
     var seekBarTrack = document.createElement('div');
     var seekBarFill = document.createElement('div');

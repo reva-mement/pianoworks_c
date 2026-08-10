@@ -2,7 +2,7 @@
 // Studio（GAME ON）画面。現時点では水（バブル）スキンのみ実装。
 // 見た目確認用のダミーノーツを表示する段階で、実際のMIDI連動はまだ行っていない。
 
-import { getCurrentSkinId } from './skin.js';
+import { getCurrentSkinId, getSkinPartId } from './skin.js';
 import { studioDB, fadeBgm, attachTitleExpand } from './jukebox.js';
 import { playNote, getPianoCtx, loadPianoSamples, stopAllNotes } from './audio-engine.js';
 
@@ -255,21 +255,21 @@ function buildPlayfield() {
     var pressedLoopId = null;
     function startPressedStream() {
       if (pressedLoopId) return;
-      var skinId = getCurrentSkinId();
-      if (skinId === 'fire') showFlamethrower(fallArea, laneIndex);
+      var keyEffectSkin = getSkinPartId('keyEffect');
+      if (keyEffectSkin === 'fire') showFlamethrower(fallArea, laneIndex);
       (function loopPressed() {
         if (!key.classList.contains('pressed')) {
           pressedLoopId = null;
-          if (getCurrentSkinId() === 'fire') hideFlamethrower(laneIndex);
+          if (getSkinPartId('keyEffect') === 'fire') hideFlamethrower(laneIndex);
           return;
         }
-        var currentSkin = getCurrentSkinId();
-        if (currentSkin === 'normal') {
-          tryHitNearestNote(fallArea, laneIndex); // 炎・泡なし、直接ヒット判定
-        } else if (currentSkin === 'fire') {
+        var currentKeyEffect = getSkinPartId('keyEffect');
+        if (currentKeyEffect === 'fire') {
           tryBurnNoteInFlame(fallArea, laneIndex); // 炎が届く範囲のノーツを燃やし続ける
-        } else {
+        } else if (currentKeyEffect === 'water') {
           spawnRisingBubble(fallArea, laneIndex); // 水スキン：泡を立ち上らせる
+        } else {
+          tryHitNearestNote(fallArea, laneIndex); // 指定がなければノーマル：炎・泡なし、直接ヒット判定
         }
         pressedLoopId = setTimeout(loopPressed, 60);
       })();
@@ -451,7 +451,7 @@ function popNote(note, area, record, judgment, opts) {
   }
 
   note.classList.add('popping');
-  var skinId = getCurrentSkinId();
+  var skinId = getSkinPartId('keyEffect'); // ヒット時の演出も「鍵盤を押した時のエフェクト」の一部として扱う
 
   if (skinId === 'normal') {
     // ノーマルスキン：PC版と同じ、ランダムな虹色の小さな星がはじける演出
@@ -941,7 +941,7 @@ function saveMaxScoreIfNeeded() {
 function spawnRealNote(entry) {
   var area = document.getElementById('studio-fall-' + entry.lane);
   if (!area) return;
-  var skinId = getCurrentSkinId();
+  var skinId = getSkinPartId('notes');
   var note = document.createElement('div');
 
   var pitchNorm = entry.lane / (LANES - 1);

@@ -13,6 +13,29 @@ var SKINS = [
 var SKIN_STORAGE_KEY = 'pianoworks_selected_skin';
 var DEFAULT_SKIN_ID = 'normal';
 
+// ---- パーツ別のスキン管理 ----
+// スキンの見た目は「鍵盤(keyboard)・ノーツ(notes)・Jukeboxのシークバー(seekbar)・
+// 鍵盤を押した時のエフェクト(keyEffect)」という項目(パーツ)ごとに決まる。
+// 各スキンは、自分が独自に用意した項目だけを SKIN_PART_OVERRIDES に書けばよい。
+// ここに書かれていない項目は、そのスキンで何を選んでいても常に'normal'になる
+// (直前に選んでいた別のスキンの見た目を、うっかり引き継いでしまうことはない)。
+var SKIN_PARTS = ['keyboard', 'notes', 'seekbar', 'keyEffect'];
+var SKIN_PART_OVERRIDES = {
+  normal: {},
+  water: { notes: 'water', seekbar: 'water', keyEffect: 'water' },
+  fire: { keyEffect: 'fire' }
+};
+
+// 指定したパーツについて、現在選ばれているスキンで実際に使うべきスキンIDを返す。
+// 現在のスキンがそのパーツを持っていなければ、必ず'normal'を返す。
+export function getSkinPartId(part) {
+  var overrides = SKIN_PART_OVERRIDES[currentSkinId];
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, part)) {
+    return overrides[part];
+  }
+  return 'normal';
+}
+
 function loadSavedSkinId() {
   try {
     var saved = localStorage.getItem(SKIN_STORAGE_KEY);
