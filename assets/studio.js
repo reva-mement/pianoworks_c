@@ -332,24 +332,27 @@ function buildPlayfield() {
           } else if (!(activeKey && parseInt(activeKey.dataset.lane, 10) === laneIndex)) {
             abortHold(record);
           }
-        } else {
-          var distToBottom = areaHeight - (record.y + record.height);
-          if (distToBottom < 0) {
-            distToBottom = 0;
-            record.y = areaHeight - record.height;
-          }
-          if (distToBottom <= JUDGE_LINE_OFFSET) {
-            // 取りこぼし：実線(判定ライン)を越えてから、鍵盤に近づくほど徐々に薄くなり、鍵盤の直前で消える
-            if (!record.missCounted) {
-              record.missCounted = true;
-              currentSong.accuracyHistory.push(0);
-            }
-            record.el.style.opacity = distToBottom / JUDGE_LINE_OFFSET;
-            if (distToBottom <= 0) {
-              record.popped = true;
-              (function (el) { if (el.parentNode) el.remove(); })(record.el);
-            }
-          }
+          record.el.style.transform = 'translateY(' + record.y + 'px)';
+          return;
+        }
+
+        var distToBottom = areaHeight - (record.y + record.height);
+        if (distToBottom < 0) distToBottom = 0;
+
+        // PC版と同じ考え方：判定ゾーン(実線±HIT_WINDOW_PX)を通過するあいだに連続的に薄くなり、
+        // ゾーンを抜けきったところ(=もうヒットしようがない位置)で初めて取りこぼし確定・消去する
+        var fadeStart = JUDGE_LINE_OFFSET + HIT_WINDOW_PX; // ここからフェード開始
+        var fadeEnd = JUDGE_LINE_OFFSET - HIT_WINDOW_PX;   // ここでopacity 0(=ヒット判定が可能な範囲の終わり)
+
+        if (distToBottom <= fadeStart) {
+          var ratio = (distToBottom - fadeEnd) / (fadeStart - fadeEnd);
+          record.el.style.opacity = Math.max(0, Math.min(1, ratio));
+        }
+        if (distToBottom <= fadeEnd) {
+          record.popped = true;
+          currentSong.accuracyHistory.push(0);
+          (function (el) { if (el.parentNode) el.remove(); })(record.el);
+          return;
         }
         record.el.style.transform = 'translateY(' + record.y + 'px)';
       });
@@ -994,7 +997,6 @@ function spawnRealNote(entry) {
     speed: areaHeight / (FALL_DURATION_MS / 1000),
     popped: false,
     holding: false,
-    missCounted: false,
     isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
     lane: entry.lane,
     pitch: entry.pitch,
