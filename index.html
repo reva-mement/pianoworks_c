@@ -687,6 +687,11 @@
       <div id="studio-detail-title" style="font-family:'Yomogi', cursive; font-size:16px; color:#f3ede0; margin-bottom:4px; overflow-wrap:break-word;"></div>
       <div style="font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; margin-bottom:14px;">MAX SCORE: <span id="studio-detail-maxscore" style="color:#e8a24a;">0</span></div>
       <canvas id="studio-detail-canvas" style="width:100%; height:140px; display:block;"></canvas>
+      <div id="studio-detail-tooltip" style="display:none; margin-top:10px; padding:8px 10px; background:rgba(232,150,66,0.12); border:1px solid rgba(232,150,66,0.5); border-radius:8px; font-family:'Yomogi', cursive; font-size:12px; color:#f3ede0; line-height:1.7;">
+        <div>日時：<span id="studio-detail-tt-date"></span></div>
+        <div>スコア：<span id="studio-detail-tt-score" style="color:#e8a24a;"></span></div>
+        <div>正確さ：<span id="studio-detail-tt-accuracy" style="color:#e8a24a;"></span>%</div>
+      </div>
       <div style="display:flex; justify-content:flex-end; margin-top:16px;">
         <div id="studio-detail-close" style="font-family:'Yomogi', cursive; font-size:13px; color:#efe4cf; padding:6px 16px; border:1px solid rgba(232,150,66,0.7); border-radius:6px; cursor:pointer;">閉じる</div>
       </div>
