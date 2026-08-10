@@ -97,6 +97,7 @@ function buildPlayfield() {
     var key = document.createElement('div');
     key.className = 'studio-key';
     key.dataset.lane = i;
+    laneStates[i].keyEl = key; // 泡の当たり判定で「押している間かどうか」を見るために保持
 
     lane.appendChild(fallArea);
     lane.appendChild(key);
@@ -362,6 +363,9 @@ function buildPlayfield() {
 
       state.bubbles.forEach(function (b) {
         if (b.consumed) return;
+        // 鍵盤を離している間は、泡が触れても判定しない(見た目の上昇はそのまま続ける)
+        var isKeyPressed = state.keyEl && state.keyEl.classList.contains('pressed');
+        if (!isKeyPressed) return;
         var bubbleTopY = areaHeight - b.risen - b.size;
         state.notes.forEach(function (record) {
           if (record.popped || record.holding) return;
