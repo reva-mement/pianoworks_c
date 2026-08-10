@@ -12,7 +12,7 @@ var built = false;
 var loopStarted = false;
 var FALL_DURATION_MS = 2600; // ノーツが上端から鍵盤に届くまでの時間
 var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
-var JUDGE_LINE_OFFSET = 15;  // 鍵盤上端から判定ラインまでの距離(px)
+var JUDGE_LINE_OFFSET = 35;  // 鍵盤上端から判定ライン(実線/Justの中心)までの距離(px)。下点線が鍵盤上5pxに来るよう、HIT_WINDOW_PX(30)+5
 var HIT_WINDOW_PX = 30;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める(これより離れた早いタップ等は無効)
 var JUST_WINDOW_PX = 12;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)
 var HOLD_THRESHOLD_MS = 350; // これより長い音符は「押しっぱなし」が必要なホールドノーツとして扱う
@@ -333,15 +333,21 @@ function buildPlayfield() {
             abortHold(record);
           }
         } else {
-          if (record.y + record.height > areaHeight) {
+          var distToBottom = areaHeight - (record.y + record.height);
+          if (distToBottom < 0) {
+            distToBottom = 0;
             record.y = areaHeight - record.height;
-            if (!record.popped) {
-              // 取りこぼし：鍵盤の直前で留まらせず、その場で即フェードアウトさせて消す
-              record.popped = true;
-              record.el.style.transition = 'opacity 0.28s ease-out';
-              record.el.style.opacity = '0';
+          }
+          if (distToBottom <= JUDGE_LINE_OFFSET) {
+            // 取りこぼし：実線(判定ライン)を越えてから、鍵盤に近づくほど徐々に薄くなり、鍵盤の直前で消える
+            if (!record.missCounted) {
+              record.missCounted = true;
               currentSong.accuracyHistory.push(0);
-              (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 300); })(record.el);
+            }
+            record.el.style.opacity = distToBottom / JUDGE_LINE_OFFSET;
+            if (distToBottom <= 0) {
+              record.popped = true;
+              (function (el) { if (el.parentNode) el.remove(); })(record.el);
             }
           }
         }
@@ -988,6 +994,7 @@ function spawnRealNote(entry) {
     speed: areaHeight / (FALL_DURATION_MS / 1000),
     popped: false,
     holding: false,
+    missCounted: false,
     isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
     lane: entry.lane,
     pitch: entry.pitch,
