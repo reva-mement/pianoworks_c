@@ -900,6 +900,7 @@ function resumeSongPlayback() {
 
 function stopSongPlayback() {
   currentSong.playing = false;
+  currentSong.paused = false; // 中断→終了で止めたまま残ると、次回の再生が始まらなくなるためリセットする
   if (currentSong.audioIntervalId) { clearInterval(currentSong.audioIntervalId); currentSong.audioIntervalId = null; }
   if (currentSong.chartIntervalId) { clearInterval(currentSong.chartIntervalId); currentSong.chartIntervalId = null; }
   stopAllNotes();
@@ -1126,6 +1127,7 @@ export function openStudioPlay(songEntry) {
       currentSong.audioIndex = 0;
       currentSong.chartIndex = 0;
       currentSong.score = 0;
+      currentSong.paused = false; // 前回の状態が万一残っていても、必ずリセットしてから始める
       currentSong.lastFishMilestone = 0;
       currentSong.entryId = songEntry.id;
       currentSong.entryMaxScore = songEntry.maxScore || 0;
