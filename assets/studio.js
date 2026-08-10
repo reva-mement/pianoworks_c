@@ -109,11 +109,22 @@ function buildPlayfield() {
   blackKeysLayer.id = 'studio-black-keys-layer';
   document.getElementById('scene-studio-play').appendChild(blackKeysLayer);
 
-  // 当たり判定ライン：鍵盤の上端から15pxの位置に1本だけ
+  // 当たり判定ライン：下から「点線(Justゾーン下端)・実線(Justの中心)・点線(Justゾーン上端)」の3本
+  // 実線のタイミングで鍵盤をタップするとJustになる。点線2本はJUST_WINDOW_PXぶん外側の目安線。
+  var judgeLineLowerEl = document.createElement('div');
+  judgeLineLowerEl.className = 'studio-hitzone-line-dashed';
+  judgeLineLowerEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET - JUST_WINDOW_PX) + 'px';
+  document.getElementById('scene-studio-play').appendChild(judgeLineLowerEl);
+
   var judgeLineEl = document.createElement('div');
   judgeLineEl.className = 'studio-hitzone-line';
   judgeLineEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET) + 'px';
   document.getElementById('scene-studio-play').appendChild(judgeLineEl);
+
+  var judgeLineUpperEl = document.createElement('div');
+  judgeLineUpperEl.className = 'studio-hitzone-line-dashed';
+  judgeLineUpperEl.style.bottom = (KEYS_TOTAL_HEIGHT + JUDGE_LINE_OFFSET + JUST_WINDOW_PX) + 'px';
+  document.getElementById('scene-studio-play').appendChild(judgeLineUpperEl);
 
   // ---- ベロシティ推定 ----
   var DEFAULT_VELOCITY = 90;
