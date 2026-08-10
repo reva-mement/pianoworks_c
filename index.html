@@ -438,13 +438,21 @@
     transform:translateX(-50%);
     transition:opacity 0.45s ease-out;
   }
-  /* 当たり判定の目安。PC版と同じく、鍵盤の上端から30px・120pxの位置に実線、75pxの位置に点線 */
+  /* 当たり判定の目安。中央=実線(Justの中心)、上下=点線(Justゾーンの境界、±JUST_WINDOW_PX) */
   #scene-studio-play .studio-hitzone-line{
     position:absolute;
     left:0; right:calc(100% / 7); /* スコア欄(7等分の右端1つぶん)には入らないようにする */
     height:2px;
     background:rgba(255,255,255,0.85);
     box-shadow:0 0 6px rgba(255,255,255,0.5);
+    pointer-events:none;
+    z-index:8;
+  }
+  #scene-studio-play .studio-hitzone-line-dashed{
+    position:absolute;
+    left:0; right:calc(100% / 7);
+    height:0;
+    border-top:2px dashed rgba(255,255,255,0.55);
     pointer-events:none;
     z-index:8;
   }
