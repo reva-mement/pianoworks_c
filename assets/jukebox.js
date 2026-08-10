@@ -694,7 +694,7 @@ function handleMidiFile(file) {
           songData: parsed.notes,
           durationMs: parsed.durationMs,
           gainCompensation: gainCompensation,
-          scoreHistory: []
+          playHistory: []
         };
         studioDB.saveSong(studioEntry).catch(function (err) {
           console.error('save failed(studio):', err);

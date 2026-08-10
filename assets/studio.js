@@ -554,7 +554,11 @@ function popNote(note, area, record, judgment, opts) {
 }
 
 // ---- Studio 曲一覧（デザインはJukeboxに準拠） ----
-function drawSparkline(canvas, history) {
+// PC版と同じ考え方：直近10プレイ分(playHistory)を、常に10分割固定の目盛りに描画する。
+// まだプレイしていない区画は0%として扱い(星は打たない)、常に10区画ぶんの折れ線を描く。
+// タップ判定用に、実際に星を描いた位置を配列で返す。
+function drawSparkline(canvas, playHistory) {
+  playHistory = playHistory || [];
   var ctx = canvas.getContext('2d');
   var dpr = window.devicePixelRatio || 1;
   var rect = canvas.getBoundingClientRect();
@@ -565,9 +569,11 @@ function drawSparkline(canvas, history) {
   ctx.clearRect(0, 0, w, h);
 
   var labelWidth = 20;
+  var sidePad = 6;
   var bottomPad = 4;
   var topPad = 4;
   var usableHeight = h - topPad - bottomPad;
+  var usableWidth = w - labelWidth - sidePad;
 
   // 0/20/40/60/80/100%の目盛り線とラベル(PC版と同じ)
   var gridValues = [0, 20, 40, 60, 80, 100];
@@ -591,19 +597,41 @@ function drawSparkline(canvas, history) {
     ctx.fillText(v + '%', 0, y);
   });
 
-  if (!history || history.length === 0) return;
+  var MAX_SLOTS = 10;
+  var stepX = usableWidth / (MAX_SLOTS - 1);
+  var values = [];
+  for (var i = 0; i < MAX_SLOTS; i++) {
+    values.push(playHistory[i] ? playHistory[i].accuracy : 0);
+  }
 
-  // 叩くたびの正確さ(0/60/70/80/90/100)を線でつなぐ(PC版と同じ配色)
-  var stepX = Math.max(2, (w - labelWidth) / Math.max(1, history.length - 1));
+  // 折れ線(PC版と同じ配色。常に10点を結ぶので、プレイ回数によらず必ず線が引ける)
   ctx.strokeStyle = '#b87333';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  history.forEach(function (v, i) {
-    var x = labelWidth + i * stepX;
+  values.forEach(function (v, i) {
+    var x = labelWidth + sidePad + i * stepX;
     var y = h - bottomPad - (v / 100) * usableHeight;
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
+
+  // 実際にプレイした点にだけ星マーカーを打つ(未プレイの区画には打たない)
+  var starPositions = [];
+  ctx.fillStyle = '#ffdd55';
+  ctx.strokeStyle = '#b87333';
+  ctx.lineWidth = 1;
+  values.forEach(function (v, i) {
+    if (i >= playHistory.length) return; // 未プレイ区画はスキップ
+    var x = labelWidth + sidePad + i * stepX;
+    var y = h - bottomPad - (v / 100) * usableHeight;
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    starPositions.push({ x: x, y: y, index: i });
+  });
+
+  return starPositions; // タップ判定に使う、実際にプレイした点の画面座標(CSSピクセル)
 }
 
 function renderStudioSongList() {
@@ -923,16 +951,27 @@ function stopSongPlayback() {
   return saveMaxScoreIfNeeded();
 }
 
-// 中断・完了に関わらず、今回のスコアが過去の最高を上回っていれば保存する
+// 中断・完了に関わらず、今回のプレイの記録(スコア・accuracy・日時)を保存する
 function saveMaxScoreIfNeeded() {
   if (currentSong.entryId == null) return Promise.resolve();
   if (currentSong.accuracyHistory.length === 0) return Promise.resolve(); // 一度も叩かないまま終わった場合は保存しない
   var newScore = currentSong.score;
-  var newHistory = currentSong.accuracyHistory.slice();
+  // PC版のhitAccuracyと同じ考え方：このプレイで叩いた1音ずつの正確さ(0/70/100)の平均を、
+  // このプレイ全体の正確さ(%)とする
+  var sum = currentSong.accuracyHistory.reduce(function (a, b) { return a + b; }, 0);
+  var newAccuracy = sum / currentSong.accuracyHistory.length;
   return studioDB.getAllSongs().then(function (songs) {
     var target = songs.filter(function (s) { return s.id === currentSong.entryId; })[0];
     if (!target) return;
-    target.scoreHistory = newHistory; // グラフは常に最新のプレイの記録に更新する
+    // PC版と同じく「1プレイ=1点」としてplayHistoryに積み重ね、直近10件だけ保持する
+    // (先頭が一番古いプレイ、末尾が最新のプレイ)
+    var prevPlayHistory = target.playHistory || [];
+    var playHistory = prevPlayHistory.concat([{
+      date: Date.now(),
+      score: newScore,
+      accuracy: newAccuracy
+    }]).slice(-10);
+    target.playHistory = playHistory;
     if (newScore > (target.maxScore || 0)) {
       target.maxScore = newScore;
     }
@@ -1167,17 +1206,47 @@ export function closeStudioPlay() {
   });
 }
 
-// 曲の詳細(MAX SCORE・accuracyグラフ)をモーダルで表示する
+// 曲の詳細(MAX SCORE・直近10プレイのaccuracyグラフ)をモーダルで表示する
 function openStudioDetail(entry) {
   document.getElementById('studio-detail-title').textContent = entry.name;
   document.getElementById('studio-detail-maxscore').textContent = entry.maxScore || 0;
+  var tooltip = document.getElementById('studio-detail-tooltip');
+  tooltip.style.display = 'none'; // 開き直すたびに、前回タップした詳細表示はリセットする
   var overlay = document.getElementById('studio-detail-overlay');
   overlay.style.display = 'flex';
   requestAnimationFrame(function () {
     requestAnimationFrame(function () { overlay.style.opacity = '1'; });
   });
   var canvas = document.getElementById('studio-detail-canvas');
-  requestAnimationFrame(function () { drawSparkline(canvas, entry.scoreHistory); });
+  var playHistory = entry.playHistory || [];
+  var starPositions = [];
+  requestAnimationFrame(function () {
+    starPositions = drawSparkline(canvas, playHistory) || [];
+  });
+
+  // 星(実際にプレイした点)をタップすると、その回のスコア・正確さ・日時を表示する
+  canvas.onclick = function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    var HIT_RADIUS = 12; // 指でのタップは狙いにくいので、星の見た目より広めに判定する
+    var nearest = null;
+    var nearestDist = Infinity;
+    starPositions.forEach(function (p) {
+      var dist = Math.hypot(x - p.x, y - p.y);
+      if (dist < nearestDist) { nearestDist = dist; nearest = p; }
+    });
+    if (!nearest || nearestDist > HIT_RADIUS) { tooltip.style.display = 'none'; return; }
+
+    var point = playHistory[nearest.index];
+    var d = new Date(point.date);
+    var dateStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+      ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    document.getElementById('studio-detail-tt-date').textContent = dateStr;
+    document.getElementById('studio-detail-tt-score').textContent = point.score;
+    document.getElementById('studio-detail-tt-accuracy').textContent = point.accuracy.toFixed(1);
+    tooltip.style.display = 'block';
+  };
 }
 
 function closeStudioDetail() {
