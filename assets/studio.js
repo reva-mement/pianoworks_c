@@ -1197,8 +1197,6 @@ function runCountdown(onDone) {
 }
 
 export function openStudioPlay(songEntry) {
-  // 現時点では水スキンのみ実装。将来的にはgetCurrentSkinId()の値でここを分岐する。
-  var skinId = getCurrentSkinId();
   if (!built) {
     buildPlayfield();
     built = true;
@@ -1206,6 +1204,8 @@ export function openStudioPlay(songEntry) {
   document.getElementById('studio-list-overlay').style.display = 'none';
   document.getElementById('scene-home').classList.add('hidden');
   document.getElementById('scene-studio-play').classList.remove('hidden');
+  // 水スキンの時だけ、画面の背景に薄い青をかけて海っぽさを出す
+  document.getElementById('scene-studio-play').classList.toggle('skin-water-bg', getCurrentSkinId() === 'water');
 
   if (!songEntry || !songEntry.songData || songEntry.songData.length === 0) return;
 
