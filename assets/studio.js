@@ -834,6 +834,31 @@ function extractMelodyPitches(songData) {
   return melody;
 }
 
+// 同じレーン(同じ音程)で、間隔が近い(CHAIN_GAP_MS以内)音符が連続している場合、
+// 見た目だけ「隙間なく繋がって見える」ようにタグ付けする。
+// ★ 判定・タイミングには一切影響しない。各音符は引き続き個別に、本来の時刻通りに判定される。
+//   spawnRealNote側で、このタグを見て「前の音符との隙間ぶんだけ上に形を伸ばす」「繋ぎ目の角を丸めない」
+//   という見た目の処理だけを行う。
+var CHAIN_GAP_MS = 180;
+function tagChainedNotes(chart) {
+  var byLane = {};
+  chart.forEach(function (n) {
+    if (!byLane[n.lane]) byLane[n.lane] = [];
+    byLane[n.lane].push(n);
+  });
+  Object.keys(byLane).forEach(function (laneKey) {
+    var notes = byLane[laneKey].slice().sort(function (a, b) { return a.time - b.time; });
+    for (var i = 1; i < notes.length; i++) {
+      var prev = notes[i - 1];
+      var gap = notes[i].time - (prev.time + (prev.duration || 0));
+      if (gap >= 0 && gap <= CHAIN_GAP_MS) {
+        notes[i].chainGapMs = gap; // 前の音符との隙間(この分だけ上に伸ばして、隙間を埋める)
+        prev.chainNext = true; // 前の音符側は、下端の角を丸めない(次に繋がるため)
+      }
+    }
+  });
+}
+
 function computeLaneWindow(songData) {
   if (!songData || songData.length === 0) return 60;
   var counts = {};
@@ -1003,16 +1028,41 @@ function spawnRealNote(entry) {
   var skinId = getSkinPartId('notes');
   var note = document.createElement('div');
 
+  // レイアウトがまだ確定しておらずclientHeightが0の場合、決め打ちの数値ではなく
+  // 画面全体(scene-studio-play)の高さを代わりに使う(実際の落下エリアに近い値になるよう、なるべく正確に見積もる)
+  var areaHeight = area.clientHeight
+    || (document.getElementById('scene-studio-play') || {}).clientHeight
+    || window.innerHeight;
+  var speed = areaHeight / (FALL_DURATION_MS / 1000);
+
   var pitchNorm = entry.lane / (LANES - 1);
   var height = (28 + Math.random() * 10) * (1.15 - pitchNorm * 0.35);
   var durSec = Math.max(0.05, (entry.duration || 250) / 1000);
   if (durSec > 0.6) { height *= Math.min(4.5, 1 + durSec); } // 長い音符は縦長にする
+
+  // ★ 見た目の連続演出：前の音符との間隔が近い(tagChainedNotesでタグ付け済み)場合、
+  //   その隙間ぶんだけ上方向に形を伸ばして、隙間なく繋がって見えるようにする。
+  //   判定に使う下端の位置(y+height)はこの後変えないので、ヒットタイミングには一切影響しない。
+  if (entry.chainGapMs != null) {
+    height += (entry.chainGapMs / 1000) * speed;
+  }
+
   var inset = 6 + Math.random() * 6;
   note.style.left = inset + 'px';
   note.style.right = inset + 'px';
   note.style.height = height + 'px';
   note.style.top = '0';
   note.style.transform = 'translateY(' + (-height) + 'px)';
+  if (entry.chainGapMs != null) {
+    // 前の音符と繋がる側(上端)の角は丸めない
+    note.style.borderTopLeftRadius = '0';
+    note.style.borderTopRightRadius = '0';
+  }
+  if (entry.chainNext) {
+    // 次の音符と繋がる側(下端)の角は丸めない
+    note.style.borderBottomLeftRadius = '0';
+    note.style.borderBottomRightRadius = '0';
+  }
 
   if (skinId === 'normal' || skinId === 'fire') {
     // ノーマルスキンと共通の見た目。塗りつぶしの長方形、白鍵は黄金色、黒鍵は紫色
@@ -1045,16 +1095,11 @@ function spawnRealNote(entry) {
 
   area.appendChild(note);
 
-  // レイアウトがまだ確定しておらずclientHeightが0の場合、決め打ちの数値ではなく
-  // 画面全体(scene-studio-play)の高さを代わりに使う(実際の落下エリアに近い値になるよう、なるべく正確に見積もる)
-  var areaHeight = area.clientHeight
-    || (document.getElementById('scene-studio-play') || {}).clientHeight
-    || window.innerHeight;
   var record = {
     el: note,
     y: -height,
     height: height,
-    speed: areaHeight / (FALL_DURATION_MS / 1000),
+    speed: speed,
     popped: false,
     holding: false,
     isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
@@ -1198,9 +1243,9 @@ export function openStudioPlay(songEntry) {
 
       currentSong.ctx = ctx;
       currentSong.audioNotes = autoNotes;
-      // ★ 以前は連打を1つの長いノーツにまとめていたが、実時間との対応がズレる不具合があったため撤去。
-      //   Jukeboxと同じく、各音符は個別に・本来の時刻通りに降らせる(見た目の連続感は
-      //   spawnRealNote側で、直前と間隔が近ければ隙間なく繋げる形で表現する)
+      // ★ 判定・タイミングは各音符ごとに独立させたまま(Jukeboxと同じ)、
+      //   間隔が近い連打だけ、見た目上「隙間なく繋がって見える」ようにタグ付けする
+      tagChainedNotes(chart);
       currentSong.chart = chart;
       currentSong.gainCompensation = songEntry.gainCompensation || 1;
       currentSong.audioIndex = 0;
