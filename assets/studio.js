@@ -1153,6 +1153,14 @@ export function openStudioPlay(songEntry) {
   var ctx = getPianoCtx();
   if (ctx.state === 'suspended') { ctx.resume(); }
 
+  // ★ 読み込み(初回は時間がかかり、2回目以降はキャッシュされて一瞬で終わる)の速さに関わらず、
+  //   カウントダウンが始まるタイミングを一定にするための基準時刻。
+  //   ピアノ音源(soft/mid/loud×30音=90ファイル)はタイトルタップ時点で先読みを始めているため
+  //   通常はここに来る頃には完了しているが、低速回線などの遅いケースも見積もって、
+  //   余裕を持った時間に統一する(読み込みがこれより長引いた場合のみ、その時点ですぐ始める)。
+  var openStartTime = performance.now();
+  var MIN_DELAY_BEFORE_COUNTDOWN_MS = 800;
+
   loadPianoSamples().then(function () {
     var resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
     resumePromise.then(function () {
@@ -1188,13 +1196,20 @@ export function openStudioPlay(songEntry) {
       var scoreEl = document.getElementById('studioScoreValue');
       if (scoreEl) scoreEl.textContent = '0';
 
-      runCountdown(function () {
+      // ★ ここまでの読み込みが速く終わっても、再生ボタンを押してから
+      //   MIN_DELAY_BEFORE_COUNTDOWN_MS経つまではカウントダウンを始めない(タイミングを一定にする)
+      var elapsed = performance.now() - openStartTime;
+      var remaining = Math.max(0, MIN_DELAY_BEFORE_COUNTDOWN_MS - elapsed);
+      setTimeout(function () {
         if (document.getElementById('scene-studio-play').classList.contains('hidden')) return; // 待っている間に閉じられていたら何もしない
-        currentSong.startCtxTime = ctx.currentTime;
-        currentSong.playing = true;
-        startAudioScheduler();
-        startChartScheduler();
-      });
+        runCountdown(function () {
+          if (document.getElementById('scene-studio-play').classList.contains('hidden')) return; // 待っている間に閉じられていたら何もしない
+          currentSong.startCtxTime = ctx.currentTime;
+          currentSong.playing = true;
+          startAudioScheduler();
+          startChartScheduler();
+        });
+      }, remaining);
     });
   });
 }
