@@ -40,12 +40,26 @@ function isHoldFullyPassed(record, areaHeight) {
 }
 
 // ノーツへのヒットが発生した瞬間の共通処理(タップ・泡衝突・鍵盤直接判定、すべてここを通す)
+// 連打ノーツの「次の1回」が、実際の曲の中でのタイミングにもう来ているかどうかを判定する。
+// これがないと、判定ゾーンに入ってさえいれば連打を一気に消費できてしまい、実際の曲より早いテンポで
+// 消えてしまう(＝タイミング度外視で連続タップし放題になる)ため、本来の間隔を守らせるために必要。
+var REPEAT_DUE_TOLERANCE_MS = 90; // 本来の時刻より、これくらい早いタップまでは許容する
+function isRepeatDue(record) {
+  if (!record.repeatTimes || record.repeatIndex >= record.repeatTimes.length) return true;
+  if (!currentSong.ctx || currentSong.startCtxTime == null) return true; // 曲の時計が取れない場合は素通りさせる
+  var elapsedMs = (currentSong.ctx.currentTime - currentSong.startCtxTime) * 1000;
+  var dueTime = record.repeatTimes[record.repeatIndex];
+  return elapsedMs >= dueTime - REPEAT_DUE_TOLERANCE_MS;
+}
+
 function attemptHit(record, area, judgment) {
   if (record.popped || record.holding) return false;
   if (record.repeatTotal > 1) {
     // 連打をまとめたノーツ：1回のヒットにつき1回分だけ消費する。
     // 残りがあれば全部消さず、消費した分だけ短くして(下端から)そのまま残す。
+    if (!isRepeatDue(record)) return false; // まだこの回の本来のタイミングになっていない、このタップは不発
     record.repeatsRemaining -= 1;
+    record.repeatIndex += 1;
     playHitFeedback(record, judgment); // このタップぶんの音・スコア・accuracyだけ加算する
     if (record.repeatsRemaining > 0) {
       var shrinkTo = record.baseHeight * (record.repeatsRemaining / record.repeatTotal);
@@ -250,8 +264,8 @@ function buildPlayfield() {
       if (record.popped || record.holding) continue;
       if (record.y + record.height >= areaHeight - FLAME_REACH_PX) {
         var judgment = judgeNoteHit(record, areaHeight);
-        attemptHit(record, fallArea, judgment || 'hit'); // 炎が届いてさえいれば燃える(タイミングはシビアにしない)
-        return;
+        var hit = attemptHit(record, fallArea, judgment || 'hit'); // 炎が届いてさえいれば燃える(タイミングはシビアにしない)
+        if (hit) return;
       }
     }
   }
@@ -266,8 +280,8 @@ function buildPlayfield() {
       if (record.popped || record.holding) continue;
       var judgment = judgeNoteHit(record, areaHeight);
       if (judgment) {
-        attemptHit(record, fallArea, judgment);
-        return;
+        var hit = attemptHit(record, fallArea, judgment);
+        if (hit) return; // 実際に消費できた時だけ、このタップの役目は終わり
       }
     }
   }
@@ -447,8 +461,8 @@ function buildPlayfield() {
           if (bubbleTopY <= record.y + record.height && bubbleTopY + b.size >= record.y) {
             var judgment = judgeNoteHit(record, areaHeight);
             if (judgment) {
-              b.consumed = true;
-              attemptHit(record, fallArea, judgment);
+              var hit = attemptHit(record, fallArea, judgment);
+              if (hit) b.consumed = true; // 実際に消費できた時だけ、この泡の役目も終わり
             }
             // 判定ラインから離れすぎている場合は、泡が触れても弾けない(すり抜ける)
           }
@@ -882,7 +896,8 @@ function mergeRapidRepeats(chart) {
         pitch: first.pitch,
         velocity: first.velocity,
         duration: (last.time + (last.duration || 0)) - first.time, // 最初の音から最後の音の終わりまでを1つに
-        repeatCount: group.length // 元は何回分の音符をまとめたか(1回タップするごとに、この分の1だけ消費する)
+        repeatCount: group.length, // 元は何回分の音符をまとめたか(1回タップするごとに、この分の1だけ消費する)
+        repeatTimes: group.map(function (n) { return n.time; }) // 各回の本来の時刻(実際の曲のテンポで消費させるため)
       });
       i = j;
     }
@@ -1121,6 +1136,8 @@ function spawnRealNote(entry) {
     isHold: repeatCount <= 1 && (entry.duration || 0) > HOLD_THRESHOLD_MS,
     repeatTotal: repeatCount,
     repeatsRemaining: repeatCount,
+    repeatTimes: entry.repeatTimes || [entry.time], // まとめる前、各回が本来鳴るはずだった時刻
+    repeatIndex: 0, // 次に消費できるのが何回目か(このindexの時刻にならないと消費できない)
     lane: entry.lane,
     pitch: entry.pitch,
     velocity: entry.velocity,
