@@ -815,6 +815,13 @@ export function fadeBgm(targetVolume, durationMs) {
   if (!bgm) return;
   if (bgmFadeRaf) cancelAnimationFrame(bgmFadeRaf);
 
+  // 音量を上げようとしている時に一時停止していたら、まず再生を再開する。
+  // (Studioでの長時間プレイ中に画面が非表示になり、visibilitychangeでbgmがpause
+  //  されたまま戻ってこないと、音量だけ上げても無音のままになってしまうため)
+  if (targetVolume > 0 && bgm.paused) {
+    bgm.play().catch(function () {});
+  }
+
   var startVolume = bgm.volume;
   var startTime = performance.now();
 

@@ -269,7 +269,8 @@ function buildPlayfield() {
         if (currentKeyEffect === 'fire') {
           tryBurnNoteInFlame(fallArea, laneIndex); // 炎が届く範囲のノーツを燃やし続ける
         } else if (currentKeyEffect === 'water') {
-          spawnRisingBubble(fallArea, laneIndex); // 水スキン：泡を立ち上らせる
+          spawnRisingBubble(fallArea, laneIndex); // 水スキン：泡は見た目の演出として立ち上らせる
+          tryHitNearestNote(fallArea, laneIndex); // 判定自体は他スキンと同じ直接判定にして、枠内なら確実にヒットさせる(泡の衝突有無に左右されない)
         } else {
           tryHitNearestNote(fallArea, laneIndex); // 指定がなければノーマル：炎・泡なし、直接ヒット判定
         }
