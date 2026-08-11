@@ -312,6 +312,42 @@ function buildPlayfield() {
     }
   });
 
+  // ---- デバッグ用：Studio内の全ノーツを常にJustタイミングで自動ヒットさせる ----
+  // ブラウザのコンソールから `PianoWorksDebug.setAutoJust(true)` で有効化できる。
+  // 実際に叩く必要がなくなるので、譜面が正しく流れているか・スコア処理側のバグかを切り分けたい時などに使う。
+  var debugAutoJust = false;
+  function debugForceJustAllNotes() {
+    laneStates.forEach(function (state, laneIndex) {
+      var fallArea = document.getElementById('studio-fall-' + laneIndex);
+      if (!fallArea) return;
+      state.notes.forEach(function (record) {
+        if (record.popped) return;
+        if (record.holding) {
+          finishHold(record, fallArea); // ホールド中のものは、実際に押さえ続けなくても即座に最後まで成功させる
+          return;
+        }
+        attemptHit(record, fallArea, 'just');
+        if (record.holding) {
+          // isHoldのノーツはattemptHitで「保持中」状態になるだけなので、デバッグ用にそのまま完了までさせる
+          finishHold(record, fallArea);
+        }
+      });
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.PianoWorksDebug = window.PianoWorksDebug || {};
+    window.PianoWorksDebug.setAutoJust = function (on) {
+      debugAutoJust = !!on;
+      console.log('[PianoWorksDebug] autoJust =', debugAutoJust);
+    };
+    // ?debugAutoJust=1 をURLに付けて開いても有効化できる(コンソールを開きにくいモバイル実機向け)
+    try {
+      if (new URLSearchParams(window.location.search).get('debugAutoJust') === '1') {
+        debugAutoJust = true;
+      }
+    } catch (e) { /* URLSearchParams非対応環境は無視 */ }
+  }
+
   // ---- メインループ：ノーツの落下、泡の上昇、衝突判定 ----
   var lastFrameTime = null;
   function gameLoop(ts) {
@@ -324,6 +360,7 @@ function buildPlayfield() {
     var dt = (ts - lastFrameTime) / 1000;
     lastFrameTime = ts;
     if (currentSong.paused) dt = 0; // 一時停止中はノーツ・泡の動きを止める(時計だけは進めない)
+    if (debugAutoJust) debugForceJustAllNotes();
 
     laneStates.forEach(function (state, laneIndex) {
       var fallArea = document.getElementById('studio-fall-' + laneIndex);
