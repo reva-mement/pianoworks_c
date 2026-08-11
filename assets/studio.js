@@ -312,20 +312,26 @@ function buildPlayfield() {
     }
   });
 
-  // ---- デバッグ用：Studio内の全ノーツを常にJustタイミングで自動ヒットさせる ----
+  // ---- デバッグ用：Studio内の全ノーツを、実線(判定ライン)を通過したタイミングでJustヒットさせる ----
   // ブラウザのコンソールから `PianoWorksDebug.setAutoJust(true)` で有効化できる。
-  // 実際に叩く必要がなくなるので、譜面が正しく流れているか・スコア処理側のバグかを切り分けたい時などに使う。
+  // 生成直後に問答無用でヒットさせるのではなく、実際に実線に到達したタイミングでヒットさせることで、
+  // 譜面が正しい間隔で流れているか・音楽とのズレがないかを、実際に叩かなくても確認できるようにする。
   var debugAutoJust = false;
   function debugForceJustAllNotes() {
     laneStates.forEach(function (state, laneIndex) {
       var fallArea = document.getElementById('studio-fall-' + laneIndex);
       if (!fallArea) return;
+      var areaHeight = fallArea.clientHeight;
+      if (!areaHeight) return;
+      var lineY = areaHeight - JUDGE_LINE_OFFSET;
       state.notes.forEach(function (record) {
         if (record.popped) return;
         if (record.holding) {
           finishHold(record, fallArea); // ホールド中のものは、実際に押さえ続けなくても即座に最後まで成功させる
           return;
         }
+        var noteBottom = record.y + record.height;
+        if (noteBottom < lineY) return; // まだ実線に到達していない間は待つ
         attemptHit(record, fallArea, 'just');
         if (record.holding) {
           // isHoldのノーツはattemptHitで「保持中」状態になるだけなので、デバッグ用にそのまま完了までさせる
