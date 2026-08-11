@@ -42,6 +42,22 @@ function isHoldFullyPassed(record, areaHeight) {
 // ノーツへのヒットが発生した瞬間の共通処理(タップ・泡衝突・鍵盤直接判定、すべてここを通す)
 function attemptHit(record, area, judgment) {
   if (record.popped || record.holding) return false;
+  if (record.repeatTotal > 1) {
+    // 連打をまとめたノーツ：1回のヒットにつき1回分だけ消費する。
+    // 残りがあれば全部消さず、消費した分だけ短くして(下端から)そのまま残す。
+    record.repeatsRemaining -= 1;
+    playHitFeedback(record, judgment); // このタップぶんの音・スコア・accuracyだけ加算する
+    if (record.repeatsRemaining > 0) {
+      var shrinkTo = record.baseHeight * (record.repeatsRemaining / record.repeatTotal);
+      record.height = shrinkTo;
+      record.el.style.height = shrinkTo + 'px';
+      return true;
+    }
+    // 最後の1回分：ここで初めて消える(音・スコアは直前のplayHitFeedbackで加算済みなので二重加算しない)
+    record.popped = true;
+    popNote(record.el, area, record, judgment, { skipAudioScore: true });
+    return true;
+  }
   if (record.isHold) {
     // ホールドノーツ：即座には消さず、「押しっぱなしで正しく保持している」状態にする
     record.holding = true;
@@ -865,7 +881,8 @@ function mergeRapidRepeats(chart) {
         time: first.time,
         pitch: first.pitch,
         velocity: first.velocity,
-        duration: (last.time + (last.duration || 0)) - first.time // 最初の音から最後の音の終わりまでを1つに
+        duration: (last.time + (last.duration || 0)) - first.time, // 最初の音から最後の音の終わりまでを1つに
+        repeatCount: group.length // 元は何回分の音符をまとめたか(1回タップするごとに、この分の1だけ消費する)
       });
       i = j;
     }
@@ -1091,14 +1108,19 @@ function spawnRealNote(entry) {
   var areaHeight = area.clientHeight
     || (document.getElementById('scene-studio-play') || {}).clientHeight
     || window.innerHeight;
+  var repeatCount = entry.repeatCount || 1;
   var record = {
     el: note,
     y: -height,
     height: height,
+    baseHeight: height, // 連打ノーツを1回叩くごとに縮める時の、基準となる元の高さ
     speed: areaHeight / (FALL_DURATION_MS / 1000),
     popped: false,
     holding: false,
-    isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
+    // 連打(repeatCount>1)は「押しっぱなし」のホールドではなく「複数回タップ」で消費するノーツとして扱う
+    isHold: repeatCount <= 1 && (entry.duration || 0) > HOLD_THRESHOLD_MS,
+    repeatTotal: repeatCount,
+    repeatsRemaining: repeatCount,
     lane: entry.lane,
     pitch: entry.pitch,
     velocity: entry.velocity,
