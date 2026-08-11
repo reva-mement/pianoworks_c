@@ -1053,16 +1053,6 @@ function spawnRealNote(entry) {
   note.style.height = height + 'px';
   note.style.top = '0';
   note.style.transform = 'translateY(' + (-height) + 'px)';
-  if (entry.chainGapMs != null) {
-    // 前の音符と繋がる側(上端)の角は丸めない
-    note.style.borderTopLeftRadius = '0';
-    note.style.borderTopRightRadius = '0';
-  }
-  if (entry.chainNext) {
-    // 次の音符と繋がる側(下端)の角は丸めない
-    note.style.borderBottomLeftRadius = '0';
-    note.style.borderBottomRightRadius = '0';
-  }
 
   if (skinId === 'normal' || skinId === 'fire') {
     // ノーマルスキンと共通の見た目。塗りつぶしの長方形、白鍵は黄金色、黒鍵は紫色
