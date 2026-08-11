@@ -19,15 +19,17 @@ var HOLD_THRESHOLD_MS = 350; // これより長い音符は「押しっぱなし
 
 // ノーツの現在位置が、判定ラインからどれだけ離れているかで判定する。
 // 'just'=ジャストタイミング、'hit'=普通のヒット、null=まだ早い/もう遅い(判定なし)
-// ★ JUST_WINDOW_PXの方がHIT_WINDOW_PXより広いので、実質的には
-//   「判定ラインから36px以内は常にJust」という判定になる(通常ヒットは出なくなる、意図的な仕様)
+// ★ 見た目の判定枠(点線=HIT_WINDOW_PX)より外側では、どんなにJustの許容距離(JUST_WINDOW_PX)が
+//   広くても判定しない。「押しっぱなしにしていると、枠の外(まだ上の方)でノーツが
+//   一瞬表示されてすぐ消える」という見た目のズレを防ぐため、判定の上限は必ず
+//   見た目の枠(HIT_WINDOW_PX)に合わせる。
 function judgeNoteHit(record, areaHeight) {
   var lineY = areaHeight - JUDGE_LINE_OFFSET;
   var noteBottom = record.y + record.height;
   var dist = Math.abs(noteBottom - lineY);
+  if (dist > HIT_WINDOW_PX) return null; // 見た目の枠の外側は、問答無用でまだ/もう判定しない
   if (dist <= JUST_WINDOW_PX) return 'just';
-  if (dist <= HIT_WINDOW_PX) return 'hit';
-  return null;
+  return 'hit';
 }
 
 // ホールドノーツの上端(=音の終わり)が判定ラインを過ぎたかどうか。押しっぱなしを最後までできたかの判定に使う
