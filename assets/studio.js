@@ -40,42 +40,8 @@ function isHoldFullyPassed(record, areaHeight) {
 }
 
 // ノーツへのヒットが発生した瞬間の共通処理(タップ・泡衝突・鍵盤直接判定、すべてここを通す)
-// 連打ノーツの「次の1回」が、実際の曲の中でのタイミングにもう来ているかどうかを判定する。
-// これがないと、判定ゾーンに入ってさえいれば連打を一気に消費できてしまい、実際の曲より早いテンポで
-// 消えてしまう(＝タイミング度外視で連続タップし放題になる)ため、本来の間隔を守らせるために必要。
-var REPEAT_DUE_TOLERANCE_MS = 90; // 本来の時刻より、これくらい早いタップまでは許容する
-function isRepeatDue(record) {
-  if (!record.repeatTimes || record.repeatIndex >= record.repeatTimes.length) return true;
-  if (!currentSong.ctx || currentSong.startCtxTime == null) return true; // 曲の時計が取れない場合は素通りさせる
-  var elapsedMs = (currentSong.ctx.currentTime - currentSong.startCtxTime) * 1000;
-  var dueTime = record.repeatTimes[record.repeatIndex];
-  return elapsedMs >= dueTime - REPEAT_DUE_TOLERANCE_MS;
-}
-
 function attemptHit(record, area, judgment) {
   if (record.popped || record.holding) return false;
-  if (record.repeatTotal > 1) {
-    // 連打をまとめたノーツ：1回のヒットにつき1回分だけ消費する。
-    // 残りがあれば全部消さず、消費した分だけ短くして(下端から)そのまま残す。
-    if (!isRepeatDue(record)) return false; // まだこの回の本来のタイミングになっていない、このタップは不発
-    record.repeatsRemaining -= 1;
-    record.repeatIndex += 1;
-    playHitFeedback(record, judgment); // このタップぶんの音・スコア・accuracyだけ加算する
-    if (record.repeatsRemaining > 0) {
-      // 見た目の位置を実際の時間とズレさせないよう、「残り回数の割合」ではなく
-      // 「次の1回が来るまでの実際の残り時間」から縮める高さを逆算する
-      var nextDueTime = record.repeatTimes[record.repeatIndex];
-      var remainingMs = Math.max(0, record.groupEndTime - nextDueTime);
-      var shrinkTo = record.pixelsPerMs > 0 ? remainingMs * record.pixelsPerMs : record.baseHeight * (record.repeatsRemaining / record.repeatTotal);
-      record.height = shrinkTo;
-      record.el.style.height = shrinkTo + 'px';
-      return true;
-    }
-    // 最後の1回分：ここで初めて消える(音・スコアは直前のplayHitFeedbackで加算済みなので二重加算しない)
-    record.popped = true;
-    popNote(record.el, area, record, judgment, { skipAudioScore: true });
-    return true;
-  }
   if (record.isHold) {
     // ホールドノーツ：即座には消さず、「押しっぱなしで正しく保持している」状態にする
     record.holding = true;
@@ -868,49 +834,6 @@ function extractMelodyPitches(songData) {
   return melody;
 }
 
-// 同じレーン(同じ音程)が短い間隔で連続している場合、1つの長いノーツにまとめる。
-// 「連打」ではなく「押しっぱなし」で対応できるようにするため。
-// この間隔(MERGE_GAP_MS)が、実際の連打・使用感に合わせて調整する部分
-var MERGE_GAP_MS = 180;
-function mergeRapidRepeats(chart) {
-  var byLane = {};
-  chart.forEach(function (n) {
-    if (!byLane[n.lane]) byLane[n.lane] = [];
-    byLane[n.lane].push(n);
-  });
-
-  var merged = [];
-  Object.keys(byLane).forEach(function (laneKey) {
-    var notes = byLane[laneKey].slice().sort(function (a, b) { return a.time - b.time; });
-    var i = 0;
-    while (i < notes.length) {
-      var group = [notes[i]];
-      var groupEnd = notes[i].time + (notes[i].duration || 0);
-      var j = i + 1;
-      while (j < notes.length && (notes[j].time - groupEnd) <= MERGE_GAP_MS) {
-        group.push(notes[j]);
-        groupEnd = notes[j].time + (notes[j].duration || 0);
-        j++;
-      }
-      var first = group[0];
-      var last = group[group.length - 1];
-      merged.push({
-        lane: first.lane,
-        time: first.time,
-        pitch: first.pitch,
-        velocity: first.velocity,
-        duration: (last.time + (last.duration || 0)) - first.time, // 最初の音から最後の音の終わりまでを1つに
-        repeatCount: group.length, // 元は何回分の音符をまとめたか(1回タップするごとに、この分の1だけ消費する)
-        repeatTimes: group.map(function (n) { return n.time; }) // 各回の本来の時刻(実際の曲のテンポで消費させるため)
-      });
-      i = j;
-    }
-  });
-
-  merged.sort(function (a, b) { return a.time - b.time; });
-  return merged;
-}
-
 function computeLaneWindow(songData) {
   if (!songData || songData.length === 0) return 60;
   var counts = {};
@@ -1127,23 +1050,14 @@ function spawnRealNote(entry) {
   var areaHeight = area.clientHeight
     || (document.getElementById('scene-studio-play') || {}).clientHeight
     || window.innerHeight;
-  var repeatCount = entry.repeatCount || 1;
   var record = {
     el: note,
     y: -height,
     height: height,
-    baseHeight: height, // 連打ノーツを1回叩くごとに縮める時の、基準となる元の高さ
     speed: areaHeight / (FALL_DURATION_MS / 1000),
     popped: false,
     holding: false,
-    // 連打(repeatCount>1)は「押しっぱなし」のホールドではなく「複数回タップ」で消費するノーツとして扱う
-    isHold: repeatCount <= 1 && (entry.duration || 0) > HOLD_THRESHOLD_MS,
-    repeatTotal: repeatCount,
-    repeatsRemaining: repeatCount,
-    repeatTimes: entry.repeatTimes || [entry.time], // まとめる前、各回が本来鳴るはずだった時刻
-    repeatIndex: 0, // 次に消費できるのが何回目か(このindexの時刻にならないと消費できない)
-    groupEndTime: entry.time + (entry.duration || 0), // まとめる前の最後の音符が終わる時刻(縮める量を実時間から逆算するため)
-    pixelsPerMs: (entry.duration || 0) > 0 ? (height / entry.duration) : 0,
+    isHold: (entry.duration || 0) > HOLD_THRESHOLD_MS,
     lane: entry.lane,
     pitch: entry.pitch,
     velocity: entry.velocity,
@@ -1284,7 +1198,9 @@ export function openStudioPlay(songEntry) {
 
       currentSong.ctx = ctx;
       currentSong.audioNotes = autoNotes;
-      chart = mergeRapidRepeats(chart);
+      // ★ 以前は連打を1つの長いノーツにまとめていたが、実時間との対応がズレる不具合があったため撤去。
+      //   Jukeboxと同じく、各音符は個別に・本来の時刻通りに降らせる(見た目の連続感は
+      //   spawnRealNote側で、直前と間隔が近ければ隙間なく繋げる形で表現する)
       currentSong.chart = chart;
       currentSong.gainCompensation = songEntry.gainCompensation || 1;
       currentSong.audioIndex = 0;
