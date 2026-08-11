@@ -16,6 +16,7 @@ var JUDGE_LINE_OFFSET = 35;  // 鍵盤上端から判定ライン(実線/Justの
 var HIT_WINDOW_PX = 30;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める(これより離れた早いタップ等は無効)
 var JUST_WINDOW_PX = 36;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)。当たり判定を広めに取るため、通常の3倍(12→36)にしてある
 var HOLD_THRESHOLD_MS = 350; // これより長い音符は「押しっぱなし」が必要なホールドノーツとして扱う
+var BUBBLE_MAX_RISE_PX = 200; // 泡は当たり判定に必須ではなく見た目の演出のため、衝突しなくてもこの距離まで昇ったら消える(画面上部まで昇り続けるのを防ぐ)
 
 // ノーツの現在位置が、判定ラインからどれだけ離れているかで判定する。
 // 'just'=ジャストタイミング、'hit'=普通のヒット、null=まだ早い/もう遅い(判定なし)
@@ -225,7 +226,8 @@ function buildPlayfield() {
   // 炎が届く範囲(鍵盤上端からのpx)にいる、まだ弾けていないノーツを燃やす
   var FLAME_REACH_PX = 90;
   function tryBurnNoteInFlame(fallArea, laneIndex) {
-    var areaHeight = fallArea.clientHeight || 260;
+    var areaHeight = fallArea.clientHeight;
+    if (!areaHeight) return; // まだレイアウトが確定していない一瞬は、誤判定を避けるため何もしない
     var state = laneStates[laneIndex];
     for (var i = 0; i < state.notes.length; i++) {
       var record = state.notes[i];
@@ -240,7 +242,8 @@ function buildPlayfield() {
 
   // 鍵盤付近にいる、まだ弾けていないノーツを直接叩く(ノーマルスキン用)。判定ライン基準で判定する
   function tryHitNearestNote(fallArea, laneIndex) {
-    var areaHeight = fallArea.clientHeight || 260;
+    var areaHeight = fallArea.clientHeight;
+    if (!areaHeight) return; // まだレイアウトが確定していない一瞬は、誤判定を避けるため何もしない
     var state = laneStates[laneIndex];
     for (var i = 0; i < state.notes.length; i++) {
       var record = state.notes[i];
@@ -325,7 +328,8 @@ function buildPlayfield() {
     laneStates.forEach(function (state, laneIndex) {
       var fallArea = document.getElementById('studio-fall-' + laneIndex);
       if (!fallArea) return;
-      var areaHeight = fallArea.clientHeight || 260;
+      var areaHeight = fallArea.clientHeight;
+      if (!areaHeight) return; // まだレイアウトが確定していない一瞬は、誤判定を避けるためこのフレームは何もしない(次フレームで再試行される)
 
       state.notes.forEach(function (record) {
         if (record.popped) return;
@@ -365,6 +369,12 @@ function buildPlayfield() {
       state.bubbles.forEach(function (b) {
         b.risen += b.speed * dt;
         b.el.style.bottom = b.risen + 'px';
+        // 衝突しなくても、最大上昇距離が近づいたら徐々に薄くして自然に消す
+        var fadeZone = 40;
+        if (b.risen > BUBBLE_MAX_RISE_PX - fadeZone) {
+          var bubbleOpacity = 1 - (b.risen - (BUBBLE_MAX_RISE_PX - fadeZone)) / fadeZone;
+          b.el.style.opacity = Math.max(0, Math.min(1, bubbleOpacity));
+        }
       });
 
       state.bubbles.forEach(function (b) {
@@ -387,7 +397,7 @@ function buildPlayfield() {
       });
 
       state.bubbles = state.bubbles.filter(function (b) {
-        if (b.consumed || b.risen > areaHeight + 20) {
+        if (b.consumed || b.risen > BUBBLE_MAX_RISE_PX) {
           if (b.el.parentNode) b.el.remove();
           return false;
         }
@@ -1033,7 +1043,11 @@ function spawnRealNote(entry) {
 
   area.appendChild(note);
 
-  var areaHeight = area.clientHeight || 260;
+  // レイアウトがまだ確定しておらずclientHeightが0の場合、決め打ちの数値ではなく
+  // 画面全体(scene-studio-play)の高さを代わりに使う(実際の落下エリアに近い値になるよう、なるべく正確に見積もる)
+  var areaHeight = area.clientHeight
+    || (document.getElementById('scene-studio-play') || {}).clientHeight
+    || window.innerHeight;
   var record = {
     el: note,
     y: -height,
