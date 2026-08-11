@@ -45,14 +45,13 @@ function renderStoryList() {
 }
 
 export function openStoryList() {
-  document.getElementById('scene-home').classList.add('hidden');
+  // ホーム画面は非表示にせず、後ろに残したまま重ねる(すりガラス効果が実際にホーム画面を透かして見えるように)
   document.getElementById('scene-story-list').classList.remove('hidden');
   renderStoryList();
 }
 
 export function closeStoryList() {
   document.getElementById('scene-story-list').classList.add('hidden');
-  document.getElementById('scene-home').classList.remove('hidden');
 }
 
 export function openStoryRead(story) {
