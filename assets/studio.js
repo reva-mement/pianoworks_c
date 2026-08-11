@@ -392,7 +392,7 @@ function buildPlayfield() {
           } else if (!(activeKey && parseInt(activeKey.dataset.lane, 10) === laneIndex)) {
             abortHold(record);
           }
-          record.el.style.transform = 'translateY(' + record.y + 'px)';
+          record.el.style.setProperty('--note-y', record.y + 'px');
           return;
         }
 
@@ -414,7 +414,7 @@ function buildPlayfield() {
           (function (el) { if (el.parentNode) el.remove(); })(record.el);
           return;
         }
-        record.el.style.transform = 'translateY(' + record.y + 'px)';
+        record.el.style.setProperty('--note-y', record.y + 'px');
       });
 
       state.bubbles.forEach(function (b) {
@@ -1060,7 +1060,7 @@ function spawnRealNote(entry) {
   note.style.right = inset + 'px';
   note.style.height = height + 'px';
   note.style.top = '0';
-  note.style.transform = 'translateY(' + (-height) + 'px)';
+  note.style.setProperty('--note-y', (-height) + 'px');
 
   if (skinId === 'normal' || skinId === 'fire') {
     // ノーマルスキンと共通の見た目。塗りつぶしの長方形、白鍵は黄金色、黒鍵は紫色
