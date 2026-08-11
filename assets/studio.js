@@ -332,6 +332,14 @@ function buildPlayfield() {
         }
         var noteBottom = record.y + record.height;
         if (noteBottom < lineY) return; // まだ実線に到達していない間は待つ
+        // 実際に鍵盤を押した時と同じ見た目の演出を出す(当たり判定には関係ない、見た目だけの処理)
+        var keyEffectSkin = getSkinPartId('keyEffect');
+        if (keyEffectSkin === 'water') {
+          spawnRisingBubble(fallArea, laneIndex);
+        } else if (keyEffectSkin === 'fire') {
+          showFlamethrower(fallArea, laneIndex);
+          setTimeout(function () { hideFlamethrower(laneIndex); }, 120);
+        }
         attemptHit(record, fallArea, 'just');
         if (record.holding) {
           // isHoldのノーツはattemptHitで「保持中」状態になるだけなので、デバッグ用にそのまま完了までさせる
