@@ -14,11 +14,13 @@ var FALL_DURATION_MS = 2600; // ノーツが上端から鍵盤に届くまでの
 var KEYS_TOTAL_HEIGHT = 218; // 鍵盤の高さ(208px) + 下余白(10px)
 var JUDGE_LINE_OFFSET = 35;  // 鍵盤上端から判定ライン(実線/Justの中心)までの距離(px)。下点線が鍵盤上5pxに来るよう、HIT_WINDOW_PX(30)+5
 var HIT_WINDOW_PX = 30;      // 判定ラインからこの距離以内なら、とにかく「ヒット」として認める(これより離れた早いタップ等は無効)
-var JUST_WINDOW_PX = 12;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)
+var JUST_WINDOW_PX = 36;     // 判定ラインからこの距離以内なら「Just」(ジャストタイミング)。当たり判定を広めに取るため、通常の3倍(12→36)にしてある
 var HOLD_THRESHOLD_MS = 350; // これより長い音符は「押しっぱなし」が必要なホールドノーツとして扱う
 
 // ノーツの現在位置が、判定ラインからどれだけ離れているかで判定する。
 // 'just'=ジャストタイミング、'hit'=普通のヒット、null=まだ早い/もう遅い(判定なし)
+// ★ JUST_WINDOW_PXの方がHIT_WINDOW_PXより広いので、実質的には
+//   「判定ラインから36px以内は常にJust」という判定になる(通常ヒットは出なくなる、意図的な仕様)
 function judgeNoteHit(record, areaHeight) {
   var lineY = areaHeight - JUDGE_LINE_OFFSET;
   var noteBottom = record.y + record.height;
@@ -1210,8 +1212,7 @@ export function closeStudioPlay() {
 function openStudioDetail(entry) {
   document.getElementById('studio-detail-title').textContent = entry.name;
   document.getElementById('studio-detail-maxscore').textContent = entry.maxScore || 0;
-  var tooltip = document.getElementById('studio-detail-tooltip');
-  tooltip.style.display = 'none'; // 開き直すたびに、前回タップした詳細表示はリセットする
+  hideStudioPlayFloat(); // 開き直すたびに、前回タップした詳細表示はリセットする
   var overlay = document.getElementById('studio-detail-overlay');
   overlay.style.display = 'flex';
   requestAnimationFrame(function () {
@@ -1224,7 +1225,8 @@ function openStudioDetail(entry) {
     starPositions = drawSparkline(canvas, playHistory) || [];
   });
 
-  // 星(実際にプレイした点)をタップすると、その回のスコア・正確さ・日時を表示する
+  // 星(実際にプレイした点)をタップすると、その回のスコア・正確さ・日時を
+  // 枠線のない独立したフローティングウィンドウでふわっと表示する
   canvas.onclick = function (e) {
     var rect = canvas.getBoundingClientRect();
     var x = e.clientX - rect.left;
@@ -1236,22 +1238,51 @@ function openStudioDetail(entry) {
       var dist = Math.hypot(x - p.x, y - p.y);
       if (dist < nearestDist) { nearestDist = dist; nearest = p; }
     });
-    if (!nearest || nearestDist > HIT_RADIUS) { tooltip.style.display = 'none'; return; }
+    if (!nearest || nearestDist > HIT_RADIUS) { hideStudioPlayFloat(); return; }
 
     var point = playHistory[nearest.index];
     var d = new Date(point.date);
     var dateStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
       ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-    document.getElementById('studio-detail-tt-date').textContent = dateStr;
-    document.getElementById('studio-detail-tt-score').textContent = point.score;
-    document.getElementById('studio-detail-tt-accuracy').textContent = point.accuracy.toFixed(1);
-    tooltip.style.display = 'block';
+    showStudioPlayFloat(e.clientX, e.clientY, dateStr, point.score, point.accuracy);
   };
+}
+
+// グラフの星をタップした時の、枠線なしフローティングウィンドウを表示する(ふわっと浮かび上がる)
+function showStudioPlayFloat(clientX, clientY, dateStr, score, accuracy) {
+  var el = document.getElementById('studio-play-float');
+  document.getElementById('studio-play-float-date').textContent = dateStr;
+  document.getElementById('studio-play-float-score').textContent = score;
+  document.getElementById('studio-play-float-accuracy').textContent = accuracy.toFixed(1);
+
+  // タップした指の少し上に出す。画面端でははみ出さないよう位置を調整する
+  el.style.display = 'block';
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(6px) scale(0.96)';
+  requestAnimationFrame(function () {
+    var w = el.offsetWidth, h = el.offsetHeight;
+    var left = Math.min(Math.max(8, clientX - w / 2), window.innerWidth - w - 8);
+    var top = Math.max(8, clientY - h - 18);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    requestAnimationFrame(function () {
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0) scale(1)';
+    });
+  });
+}
+
+function hideStudioPlayFloat() {
+  var el = document.getElementById('studio-play-float');
+  if (!el) return;
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(6px) scale(0.96)';
 }
 
 function closeStudioDetail() {
   var overlay = document.getElementById('studio-detail-overlay');
   overlay.style.opacity = '0';
+  hideStudioPlayFloat();
   setTimeout(function () { overlay.style.display = 'none'; }, 350);
 }
 
