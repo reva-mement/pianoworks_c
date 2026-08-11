@@ -687,15 +687,17 @@
       <div id="studio-detail-title" style="font-family:'Yomogi', cursive; font-size:16px; color:#f3ede0; margin-bottom:4px; overflow-wrap:break-word;"></div>
       <div style="font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; margin-bottom:14px;">MAX SCORE: <span id="studio-detail-maxscore" style="color:#e8a24a;">0</span></div>
       <canvas id="studio-detail-canvas" style="width:100%; height:140px; display:block;"></canvas>
-      <div id="studio-detail-tooltip" style="display:none; margin-top:10px; padding:8px 10px; background:rgba(232,150,66,0.12); border:1px solid rgba(232,150,66,0.5); border-radius:8px; font-family:'Yomogi', cursive; font-size:12px; color:#f3ede0; line-height:1.7;">
-        <div>日時：<span id="studio-detail-tt-date"></span></div>
-        <div>スコア：<span id="studio-detail-tt-score" style="color:#e8a24a;"></span></div>
-        <div>正確さ：<span id="studio-detail-tt-accuracy" style="color:#e8a24a;"></span>%</div>
-      </div>
       <div style="display:flex; justify-content:flex-end; margin-top:16px;">
         <div id="studio-detail-close" style="font-family:'Yomogi', cursive; font-size:13px; color:#efe4cf; padding:6px 16px; border:1px solid rgba(232,150,66,0.7); border-radius:6px; cursor:pointer;">閉じる</div>
       </div>
     </div>
+  </div>
+
+  <!-- グラフの星をタップした時に出す、枠線なしのふわっとしたフローティングウィンドウ -->
+  <div id="studio-play-float" style="position:fixed; left:0; top:0; z-index:110; padding:10px 16px; border-radius:14px; background:rgba(30,25,18,0.72); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:0 10px 28px rgba(0,0,0,0.4); font-family:'Yomogi', cursive; font-size:12px; color:#f3ede0; line-height:1.8; white-space:nowrap; pointer-events:none; opacity:0; transform:translateY(6px) scale(0.96); transition:opacity 0.22s ease-out, transform 0.22s ease-out;">
+    <div>日時：<span id="studio-play-float-date"></span></div>
+    <div>スコア：<span id="studio-play-float-score" style="color:#e8a24a;"></span></div>
+    <div>正確さ：<span id="studio-play-float-accuracy" style="color:#e8a24a;"></span>%</div>
   </div>
 
   <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う。
