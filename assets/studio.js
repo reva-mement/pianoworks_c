@@ -62,7 +62,11 @@ function attemptHit(record, area, judgment) {
     record.repeatIndex += 1;
     playHitFeedback(record, judgment); // このタップぶんの音・スコア・accuracyだけ加算する
     if (record.repeatsRemaining > 0) {
-      var shrinkTo = record.baseHeight * (record.repeatsRemaining / record.repeatTotal);
+      // 見た目の位置を実際の時間とズレさせないよう、「残り回数の割合」ではなく
+      // 「次の1回が来るまでの実際の残り時間」から縮める高さを逆算する
+      var nextDueTime = record.repeatTimes[record.repeatIndex];
+      var remainingMs = Math.max(0, record.groupEndTime - nextDueTime);
+      var shrinkTo = record.pixelsPerMs > 0 ? remainingMs * record.pixelsPerMs : record.baseHeight * (record.repeatsRemaining / record.repeatTotal);
       record.height = shrinkTo;
       record.el.style.height = shrinkTo + 'px';
       return true;
@@ -1138,6 +1142,8 @@ function spawnRealNote(entry) {
     repeatsRemaining: repeatCount,
     repeatTimes: entry.repeatTimes || [entry.time], // まとめる前、各回が本来鳴るはずだった時刻
     repeatIndex: 0, // 次に消費できるのが何回目か(このindexの時刻にならないと消費できない)
+    groupEndTime: entry.time + (entry.duration || 0), // まとめる前の最後の音符が終わる時刻(縮める量を実時間から逆算するため)
+    pixelsPerMs: (entry.duration || 0) > 0 ? (height / entry.duration) : 0,
     lane: entry.lane,
     pitch: entry.pitch,
     velocity: entry.velocity,
