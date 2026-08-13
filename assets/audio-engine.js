@@ -181,8 +181,11 @@ export function playNote(pitch, velocity, durationMs) {
   var gainNode = ctx.createGain();
   var v127 = Math.round(velocity / 100 * 127);
   var peakGain = Math.max(0.15, Math.min(1, v127 / 110));
+  // ---- ベロシティに応じたアタック時間：実際のピアノは強く弾くほどハンマーが速く弦を叩くため
+  //      アタックが鋭くなり、弱く弾くほど少しゆったり立ち上がる。これまでは常に5ms固定だった ----
+  var attackSec = 0.003 + (1 - v127 / 127) * 0.02; // 強打で約3ms、最弱打で約23ms
   gainNode.gain.setValueAtTime(0, now);
-  gainNode.gain.linearRampToValueAtTime(peakGain, now + 0.005); // ごく短いアタック
+  gainNode.gain.linearRampToValueAtTime(peakGain, now + attackSec);
 
   // ---- 疑似ステレオ：実際のグランドピアノと同じく、低音は左寄り・高音は右寄りに
   //      わずかに振り分ける。新しい音声ファイルは追加しないので容量は変わらない ----
@@ -209,6 +212,9 @@ export function playNote(pitch, velocity, durationMs) {
   // 余韻を長めに取る。低音ほど波形の周期が長く、短い減衰だと波の途中で
   // 打ち切られてクリックノイズ(「じじ」)が出やすいため、低音ほどさらに長くする
   var releaseSec = 0.5 + Math.max(0, 60 - pitch) * 0.012; // 低音ほど+最大で0.7秒ほど長くなる
+  // ベロシティによる補正：強く弾くほど弦に伝わるエネルギーが大きく、余韻がわずかに長く残る
+  // (逆に弱打は早めに減衰する)。0.85倍(最弱打)〜1.15倍(最強打)程度の控えめな幅で揺らす
+  releaseSec *= 0.85 + (v127 / 127) * 0.3;
   gainNode.gain.setTargetAtTime(0.0001, now + durSec, releaseSec / 3);
   // setTargetAtTimeは指数関数的に減衰するため、releaseSecちょうどでは完全に0にならない。
   // 波形の途中でバッファを打ち切るとクリックノイズの原因になるため、
