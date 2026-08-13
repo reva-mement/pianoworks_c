@@ -184,7 +184,22 @@ export function playNote(pitch, velocity, durationMs) {
   gainNode.gain.setValueAtTime(0, now);
   gainNode.gain.linearRampToValueAtTime(peakGain, now + 0.005); // ごく短いアタック
 
-  src.connect(gainNode).connect(masterGain);
+  // ---- 疑似ステレオ：実際のグランドピアノと同じく、低音は左寄り・高音は右寄りに
+  //      わずかに振り分ける。新しい音声ファイルは追加しないので容量は変わらない ----
+  var panNode = null;
+  if (typeof ctx.createStereoPanner === 'function') {
+    panNode = ctx.createStereoPanner();
+    var PAN_LOW_MIDI = 21;  // 88鍵の一番低い音(A0)
+    var PAN_HIGH_MIDI = 108; // 88鍵の一番高い音(C8)
+    var panNorm = (pitch - PAN_LOW_MIDI) / (PAN_HIGH_MIDI - PAN_LOW_MIDI); // 0(低音)〜1(高音)
+    panNode.pan.value = Math.max(-1, Math.min(1, (panNorm - 0.5) * 0.7)); // 振り幅は控えめに(-0.35〜0.35)
+  }
+
+  if (panNode) {
+    src.connect(gainNode).connect(panNode).connect(masterGain);
+  } else {
+    src.connect(gainNode).connect(masterGain); // StereoPannerNode非対応環境では、これまで通りモノラルで鳴らす
+  }
   src.start(now);
 
   activeSources[pitch] = { src: src, gainNode: gainNode, peakGain: peakGain };
