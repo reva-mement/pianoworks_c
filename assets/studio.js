@@ -1065,7 +1065,10 @@ function spawnRealNote(entry) {
   var areaHeight = area.clientHeight
     || (document.getElementById('scene-studio-play') || {}).clientHeight
     || window.innerHeight;
-  var speed = areaHeight / (FALL_DURATION_MS / 1000);
+  // ★ ノーツの下端(判定に使う位置)が、FALL_DURATION_MSちょうどで「判定ライン」に届くように速度を計算する。
+  //   画面全体の高さを基準にすると、判定ラインが画面の一番下より上(JUDGE_LINE_OFFSETぶん)にある分だけ
+  //   実際より早く判定ラインに到達してしまい、画面外で自動再生される音とテンポがズレてしまうため。
+  var speed = (areaHeight - JUDGE_LINE_OFFSET) / (FALL_DURATION_MS / 1000);
 
   var pitchNorm = entry.lane / (LANES - 1);
   var height = (28 + Math.random() * 10) * (1.15 - pitchNorm * 0.35);
