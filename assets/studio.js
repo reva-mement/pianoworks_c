@@ -42,6 +42,7 @@ function isHoldFullyPassed(record, areaHeight) {
 // ノーツへのヒットが発生した瞬間の共通処理(タップ・泡衝突・鍵盤直接判定、すべてここを通す)
 function attemptHit(record, area, judgment) {
   if (record.popped || record.holding) return false;
+  bumpCombo(); // 点線間で叩けた(=判定が成立した)ので、コンボを1伸ばす
   if (record.isHold) {
     // ホールドノーツ：即座には消さず、「押しっぱなしで正しく保持している」状態にする
     record.holding = true;
@@ -79,6 +80,7 @@ function abortHold(record) {
   record.el.style.opacity = '0';
   (function (el) { setTimeout(function () { if (el.parentNode) el.remove(); }, 260); })(record.el);
   currentSong.accuracyHistory.push(0);
+  breakCombo(); // 最後まで保持できなかった＝叩けなかった扱いなので、コンボが途切れる
 }
 
 
@@ -411,6 +413,7 @@ function buildPlayfield() {
         if (distToBottom <= fadeEnd) {
           record.popped = true;
           currentSong.accuracyHistory.push(0);
+          breakCombo(); // 叩けなかったノーツを挟んだので、コンボが途切れる
           (function (el) { if (el.parentNode) el.remove(); })(record.el);
           return;
         }
@@ -901,6 +904,8 @@ var currentSong = {
   paused: false,
   pauseStartRealTime: 0,
   score: 0,
+  combo: 0,        // 現在継続中のコンボ数
+  maxCombo: 0,     // このプレイでの最高コンボ数(画面表示はこちら)
   lastFishMilestone: 0,
   entryId: null,
   entryMaxScore: 0,
@@ -909,6 +914,24 @@ var currentSong = {
 
 var SCORE_PER_HIT = 100;
 var FISH_MILESTONE = 1000; // このスコアを超えるたびに、魚を1匹泳がせる
+
+// 点線間で叩けたノーツが続く限りコンボを伸ばし、叩けなかったノーツを1つでも挟んだら途切れる。
+// 画面上には「現在のコンボ数」ではなく、このプレイでの「最高コンボ数」を表示し続ける。
+function updateComboDisplay() {
+  var el = document.getElementById('studioComboValue');
+  if (el) el.textContent = currentSong.maxCombo;
+}
+function bumpCombo() {
+  currentSong.combo += 1;
+  if (currentSong.combo > currentSong.maxCombo) {
+    currentSong.maxCombo = currentSong.combo;
+  }
+  updateComboDisplay();
+}
+function breakCombo() {
+  currentSong.combo = 0;
+  updateComboDisplay(); // 最高コンボの表示自体は変わらないが、念のため揃えておく
+}
 
 function addScore(points) {
   currentSong.score += points;
@@ -1019,7 +1042,8 @@ function saveMaxScoreIfNeeded() {
     var playHistory = prevPlayHistory.concat([{
       date: Date.now(),
       score: newScore,
-      accuracy: newAccuracy
+      accuracy: newAccuracy,
+      combo: currentSong.maxCombo // このプレイ自体での最高コンボ(曲の歴代最高ではない)
     }]).slice(-10);
     target.playHistory = playHistory;
     if (newScore > (target.maxScore || 0)) {
@@ -1249,6 +1273,8 @@ export function openStudioPlay(songEntry) {
       currentSong.audioIndex = 0;
       currentSong.chartIndex = 0;
       currentSong.score = 0;
+      currentSong.combo = 0;
+      currentSong.maxCombo = 0;
       currentSong.paused = false; // 前回の状態が万一残っていても、必ずリセットしてから始める
       currentSong.lastFishMilestone = 0;
       currentSong.entryId = songEntry.id;
@@ -1256,6 +1282,7 @@ export function openStudioPlay(songEntry) {
       currentSong.accuracyHistory = [];
       var scoreEl = document.getElementById('studioScoreValue');
       if (scoreEl) scoreEl.textContent = '0';
+      updateComboDisplay();
 
       // ★ ここまでの読み込みが速く終わっても、再生ボタンを押してから
       //   MIN_DELAY_BEFORE_COUNTDOWN_MS経つまではカウントダウンを始めない(タイミングを一定にする)
@@ -1323,16 +1350,17 @@ function openStudioDetail(entry) {
     var d = new Date(point.date);
     var dateStr = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
       ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-    showStudioPlayFloat(e.clientX, e.clientY, dateStr, point.score, point.accuracy);
+    showStudioPlayFloat(e.clientX, e.clientY, dateStr, point.score, point.accuracy, point.combo);
   };
 }
 
 // グラフの星をタップした時の、枠線なしフローティングウィンドウを表示する(ふわっと浮かび上がる)
-function showStudioPlayFloat(clientX, clientY, dateStr, score, accuracy) {
+function showStudioPlayFloat(clientX, clientY, dateStr, score, accuracy, combo) {
   var el = document.getElementById('studio-play-float');
   document.getElementById('studio-play-float-date').textContent = dateStr;
   document.getElementById('studio-play-float-score').textContent = score;
   document.getElementById('studio-play-float-accuracy').textContent = accuracy.toFixed(1);
+  document.getElementById('studio-play-float-combo').textContent = (combo != null ? combo : 0);
 
   // タップした指の少し上に出す。画面端でははみ出さないよう位置を調整する
   el.style.display = 'block';
