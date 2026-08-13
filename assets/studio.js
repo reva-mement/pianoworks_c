@@ -467,7 +467,11 @@ function buildPlayfield() {
       var anyNotesLeft = laneStates.some(function (state) { return state.notes.length > 0 || state.bubbles.length > 0; });
       if (!anyNotesLeft) {
         currentSong.playing = false; // 二重に呼ばれないよう先に倒しておく
-        closeStudioPlay(); // フェードで一覧に戻る(内部でstopSongPlayback→最高スコア保存も行われる)
+        setTimeout(function () {
+          // 待っている間に、中断ボタン等で既に閉じられていたら何もしない(二重発火防止)
+          if (document.getElementById('scene-studio-play').classList.contains('hidden')) return;
+          closeStudioPlay(); // フェードで一覧に戻る(内部でstopSongPlayback→最高スコア保存も行われる)
+        }, 2000); // 曲が終わってすぐ途切れず、余韻を残してから一覧に戻る
       }
     }
 
