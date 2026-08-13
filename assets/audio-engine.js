@@ -1,14 +1,16 @@
 // assets/audio-engine.js
-// Salamander Grand Piano（soft/mid/loudの3レイヤー）を使った、
-// 軽量なピアノ再生エンジン。88鍵ぶんのサンプルではなく、
-// 30音だけをサンプリングし、それ以外の音程はピッチシフトで補う。
+// Salamander Grand Piano を使った、軽量なピアノ再生エンジン。
+// 「通常音質」は3レイヤー(soft/mid/loud)×30音のみをサンプリングし、それ以外の音程はピッチシフトで補う。
+// 「高音質」は将来、より多いベロシティ段階・より密なサンプリングのファイル一式を追加した時のための
+// 受け皿(まだ実ファイルは無い。QUALITY_CONFIGS.highのnotes/layersを実際のファイル構成に合わせて
+// 書き換え、対応するファイルをbasePath配下に置くだけで動く設計にしてある)。
 //
 // PC版(core.js)の設計にならい、「未来のタイムスタンプでまとめて予約する」のではなく、
 // 「その瞬間が来たら、今すぐ鳴らす／今すぐ止める」というリアルタイム駆動にしている。
 // 音程ごとに1つだけアクティブな音を持ち、同じ音程が連打されたら前の音を止めてから
 // 新しい音を鳴らす（PC版のactiveSources Mapと同じ考え方）。
 
-var SAMPLE_NOTES = [
+var NORMAL_SAMPLE_NOTES = [
   {n:'A0',m:21},{n:'C1',m:24},{n:'Ds1',m:27},{n:'Fs1',m:30},{n:'A1',m:33},
   {n:'C2',m:36},{n:'Ds2',m:39},{n:'Fs2',m:42},{n:'A2',m:45},
   {n:'C3',m:48},{n:'Ds3',m:51},{n:'Fs3',m:54},{n:'A3',m:57},
@@ -19,11 +21,92 @@ var SAMPLE_NOTES = [
   {n:'C8',m:108}
 ];
 
+// ---- 音質プリセット ----
+// 各プリセットは「どのフォルダから」「どんな強弱レイヤー名で」「どの音程のサンプルを」読むかを持つ。
+// layerBoundaries は、velocity(0-127)をどのレイヤーに振り分けるかの閾値。
+// 配列の要素数はlayers配列より1つ少ない(例：layers 3つなら閾値2つ)。
+var QUALITY_CONFIGS = {
+  normal: {
+    label: '通常',
+    basePath: 'assets/',
+    layers: ['soft', 'mid', 'loud'],
+    layerBoundaries: [45, 95],
+    notes: NORMAL_SAMPLE_NOTES
+  },
+  // ★ 高音質プリセット：まだ実ファイルが存在しないプレースホルダ。
+  //   実際のファイルを用意する時は、basePath配下に layers×notes ぶんの
+  //   「<layer>/<note.n>.opus」ファイルを配置し、必要ならlayers/layerBoundaries/notesを
+  //   実際のファイル構成(ベロシティ段階数・サンプリング間隔)に合わせて書き換えるだけでよい。
+  high: {
+    label: '高音質',
+    basePath: 'assets/hq/',
+    layers: ['soft', 'mid', 'loud'], // TODO: 実ファイル用意時、より多いレイヤー数に差し替え可能
+    layerBoundaries: [45, 95],
+    notes: NORMAL_SAMPLE_NOTES, // TODO: 実ファイル用意時、より密なサンプリング音程リストに差し替え可能
+    estimatedSizeMB: 45 // TODO: 実ファイル用意時、実際の合計サイズ(MB)に書き換える(起動時ダイアログの時間見積りに使う)
+  }
+};
+
+// 現在の回線速度から、指定した音質のダウンロードにかかる予想時間を見積もる。
+// Network Information API(navigator.connection)が使える環境ではそこから実測に近い値を、
+// 使えない環境ではモバイル回線を想定した控えめな値で見積もる
+export function estimateQualityDownload(quality) {
+  var config = QUALITY_CONFIGS[quality];
+  var sizeMB = (config && config.estimatedSizeMB) || 0;
+  var downlinkMbps = 4; // 取得できない場合のフォールバック値(控えめな4G回線を想定)
+  try {
+    var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn && conn.downlink) downlinkMbps = conn.downlink;
+  } catch (err) { /* Network Information API非対応の環境では無視してフォールバック値を使う */ }
+  var sizeMbit = sizeMB * 8; // MB -> Mbit
+  var estimatedSeconds = Math.ceil(sizeMbit / Math.max(0.5, downlinkMbps));
+  return { sizeMB: sizeMB, estimatedSeconds: estimatedSeconds };
+}
+
+var AUDIO_QUALITY_STORAGE_KEY = 'pianoworks_audio_quality';
+var currentQuality = 'normal'; // getAudioQuality()定義後、下で保存済みの設定に合わせて初期化し直す
 var pianoCtx = null;
-var pianoBuffers = { soft: {}, mid: {}, loud: {} };
-var pianoLoadingPromise = null;
+var pianoBuffers = { soft: {}, mid: {}, loud: {} }; // 現在読み込み済み・アクティブな音質のバッファ
+var pianoLoadingPromise = null; // 現在ロード中/ロード済みの音質に対応するPromise
+var loadedQualityOfPromise = null; // pianoLoadingPromiseがどの音質を指しているか
 var masterGain = null;
 var activeSources = {}; // 音程(pitch)ごとに、今鳴っている音を1つだけ保持する(PC版のactiveSources Mapと同じ)
+
+// 今どの音質が選ばれているか(保存された設定 > デフォルト'normal')を返す
+export function getAudioQuality() {
+  try {
+    var saved = localStorage.getItem(AUDIO_QUALITY_STORAGE_KEY);
+    if (saved === 'high' || saved === 'normal') return saved;
+  } catch (err) { /* localStorage不可の環境では無視してデフォルトを使う */ }
+  return 'normal';
+}
+
+function saveAudioQuality(quality) {
+  try { localStorage.setItem(AUDIO_QUALITY_STORAGE_KEY, quality); } catch (err) { /* 無視 */ }
+}
+
+// モジュール読み込み時点で、保存済みの設定を初期値として反映しておく
+// (これにより、無引数のloadPianoSamples()が最初から正しい音質を読みにいく)
+currentQuality = getAudioQuality();
+
+// 設定画面のトグルなどから呼ぶ。指定した音質の音源を読み込み(まだなら)、
+// 読み込めたらそちらに切り替える。失敗したら'normal'に自動で戻し、rejectする。
+export function setAudioQuality(quality) {
+  if (quality !== 'normal' && quality !== 'high') return Promise.reject(new Error('unknown quality: ' + quality));
+  return loadPianoSamples(quality).then(function (result) {
+    if (!result.ok) {
+      // 高音質ファイルが用意されていない/読み込みに失敗した場合は、通常音質に自動で戻す
+      currentQuality = 'normal';
+      saveAudioQuality('normal');
+      return Promise.reject(new Error('failed to load "' + quality + '" quality samples (fell back to normal)'));
+    }
+    currentQuality = quality;
+    saveAudioQuality(quality);
+    return quality;
+  });
+}
+
+
 
 // 新しい音声ファイルを一切追加せず、その場でノイズを指数関数的に減衰させて
 // 擬似的なインパルスレスポンス(IR)を生成する、コード生成リバーブの定番手法。
@@ -93,32 +176,61 @@ export function getPianoCtx() {
   return pianoCtx;
 }
 
-export function loadPianoSamples() {
-  if (pianoLoadingPromise) return pianoLoadingPromise;
+// quality省略時は、現在アクティブな音質(なければ保存済み設定 > 'normal')を読み込む。
+// 戻り値は { ok, successCount, failCount } を解決するPromise。
+export function loadPianoSamples(quality) {
+  var targetQuality = quality || currentQuality || getAudioQuality();
+  // 既にこの音質を読み込み中/読み込み済みなら、そのPromiseを使い回す
+  if (pianoLoadingPromise && loadedQualityOfPromise === targetQuality) return pianoLoadingPromise;
+
   var ctx = getPianoCtx();
-  var layers = ['soft', 'mid', 'loud'];
+  var config = QUALITY_CONFIGS[targetQuality];
+  var buffers = {};
+  config.layers.forEach(function (layer) { buffers[layer] = {}; });
+
   var tasks = [];
   var successCount = 0;
   var failCount = 0;
-  layers.forEach(function (layer) {
-    SAMPLE_NOTES.forEach(function (sn) {
-      var url = 'assets/' + layer + '/' + sn.n + '.opus';
-      tasks.push(fetchSampleWithRetry(url, ctx, 2).then(function (decoded) {
-        if (decoded) { pianoBuffers[layer][sn.n] = decoded; successCount++; }
+  config.layers.forEach(function (layer) {
+    config.notes.forEach(function (sn) {
+      var url = config.basePath + layer + '/' + sn.n + '.opus';
+      tasks.push(fetchSampleWithRetry(url, ctx, targetQuality === 'normal' ? 2 : 0).then(function (decoded) {
+        if (decoded) { buffers[layer][sn.n] = decoded; successCount++; }
         else { failCount++; }
       }));
     });
   });
-  pianoLoadingPromise = Promise.all(tasks).then(function () {
-    console.log('Piano samples loaded: ' + successCount + ' 成功 / ' + failCount + ' 失敗 (合計' + (successCount + failCount) + ')');
-    if (failCount > 0) {
-      console.error('音源の一部または全部が読み込めていません。Networkタブでopusファイルの状態(200/404/CORS等)を確認してください。');
+
+  var promise = Promise.all(tasks).then(function () {
+    var total = successCount + failCount;
+    console.log('Piano samples loaded [' + targetQuality + ']: ' + successCount + ' 成功 / ' + failCount + ' 失敗 (合計' + total + ')');
+    // 1つも読み込めなかった場合のみ失敗扱いにする(ファイルがまだ用意されていないケースを想定)。
+    // 一部だけ失敗の場合は、通常運用(モバイル回線の一時エラー等)なので読み込めた分で続行する
+    var ok = successCount > 0;
+    if (ok) {
+      pianoBuffers = buffers;
+      currentQuality = targetQuality;
+      return { ok: true, successCount: successCount, failCount: failCount };
     }
+    console.error('"' + targetQuality + '"音質のサンプルが1つも読み込めませんでした。ファイルが未配置か、パスが違う可能性があります: ' + config.basePath);
+    if (targetQuality !== 'normal') {
+      // 保存されていた設定が「高音質」でも、ファイル未配置等で読み込めなかった場合は
+      // 無音のまま起動してしまわないよう、通常音質に自動で切り替えて設定も戻しておく
+      console.warn('"' + targetQuality + '"が読み込めなかったため、"normal"に自動フォールバックします。');
+      saveAudioQuality('normal');
+      pianoLoadingPromise = null; // normalを読み直せるようキャッシュをクリアする
+      return loadPianoSamples('normal');
+    }
+    return { ok: false, successCount: successCount, failCount: failCount };
   });
-  return pianoLoadingPromise;
+
+  pianoLoadingPromise = promise;
+  loadedQualityOfPromise = targetQuality;
+  return promise;
 }
 
-// モバイル回線などでの一時的な通信エラー(ERR_CONNECTION_RESET等)に備えて、失敗時は数回リトライする
+// モバイル回線などでの一時的な通信エラー(ERR_CONNECTION_RESET等)に備えて、失敗時は数回リトライする。
+// (まだ存在しないプレースホルダ音質を試す時は、無駄な404リトライを避けるため retries=0 で呼ばれる)
 function fetchSampleWithRetry(url, ctx, retriesLeft) {
   return fetch(url)
     .then(function (r) {
@@ -131,27 +243,32 @@ function fetchSampleWithRetry(url, ctx, retriesLeft) {
         console.warn('retrying sample load:', url, err);
         return fetchSampleWithRetry(url, ctx, retriesLeft - 1);
       }
-      console.error('sample load failed:', url, err);
       return null;
     });
 }
 
 function nearestSample(midiPitch) {
-  var best = SAMPLE_NOTES[0];
+  var notes = QUALITY_CONFIGS[currentQuality].notes;
+  var best = notes[0];
   var bestDist = Math.abs(midiPitch - best.m);
-  for (var i = 1; i < SAMPLE_NOTES.length; i++) {
-    var d = Math.abs(midiPitch - SAMPLE_NOTES[i].m);
-    if (d < bestDist) { best = SAMPLE_NOTES[i]; bestDist = d; }
+  for (var i = 1; i < notes.length; i++) {
+    var d = Math.abs(midiPitch - notes[i].m);
+    if (d < bestDist) { best = notes[i]; bestDist = d; }
   }
   return best;
 }
 
-// midiplayer.jsはvelocityを0-127ではなく0-100スケールで出力する仕様のため、それに合わせる
+// midiplayer.jsはvelocityを0-127ではなく0-100スケールで出力する仕様のため、それに合わせる。
+// 現在アクティブな音質設定のlayers/layerBoundariesを見て、何段階のレイヤーでも対応できる汎用実装
 function velocityToLayer(v) {
   var v127 = Math.round(v / 100 * 127);
-  if (v127 < 45) return 'soft';
-  if (v127 < 95) return 'mid';
-  return 'loud';
+  var config = QUALITY_CONFIGS[currentQuality];
+  var layers = config.layers;
+  var boundaries = config.layerBoundaries;
+  for (var i = 0; i < boundaries.length; i++) {
+    if (v127 < boundaries[i]) return layers[i];
+  }
+  return layers[layers.length - 1];
 }
 
 // 今すぐ、指定した音程を鳴らす(PC版のplayNoteに相当)。
