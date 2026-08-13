@@ -691,7 +691,7 @@
 
   <!-- Studioの曲ごとの詳細(MAX SCORE・accuracyグラフ)を見るためのモーダル -->
   <div id="studio-detail-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px; opacity:0; transition:opacity 0.35s ease-out;">
-    <div style="background:rgba(20,17,13,0.86); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; width:100%; max-width:360px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
+    <div style="background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; width:100%; max-width:360px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
       <div id="studio-detail-title" style="font-family:'Yomogi', cursive; font-size:16px; color:#f3ede0; margin-bottom:4px; overflow-wrap:break-word;"></div>
       <div style="font-family:'Yomogi', cursive; font-size:12px; color:#a99f8c; margin-bottom:14px;">MAX SCORE: <span id="studio-detail-maxscore" style="color:#e8a24a;">0</span></div>
       <canvas id="studio-detail-canvas" style="width:100%; height:140px; display:block;"></canvas>
@@ -702,7 +702,7 @@
   </div>
 
   <!-- グラフの星をタップした時に出す、枠線なしのふわっとしたフローティングウィンドウ -->
-  <div id="studio-play-float" style="position:fixed; left:0; top:0; z-index:110; padding:10px 16px; border-radius:14px; background:rgba(30,25,18,0.72); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:0 10px 28px rgba(0,0,0,0.4); font-family:'Yomogi', cursive; font-size:12px; color:#f3ede0; line-height:1.8; white-space:nowrap; pointer-events:none; opacity:0; transform:translateY(6px) scale(0.96); transition:opacity 0.22s ease-out, transform 0.22s ease-out;">
+  <div id="studio-play-float" style="position:fixed; left:0; top:0; z-index:110; padding:10px 16px; border-radius:14px; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 10px 28px rgba(0,0,0,0.4); font-family:'Yomogi', cursive; font-size:12px; color:#f3ede0; line-height:1.8; white-space:nowrap; pointer-events:none; opacity:0; transform:translateY(6px) scale(0.96); transition:opacity 0.22s ease-out, transform 0.22s ease-out;">
     <div>日時：<span id="studio-play-float-date"></span></div>
     <div>スコア：<span id="studio-play-float-score" style="color:#e8a24a;"></span></div>
     <div>正確さ：<span id="studio-play-float-accuracy" style="color:#e8a24a;"></span>%</div>
@@ -712,7 +712,7 @@
   <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う。
        どのscene(hidden切り替え)にも属させず、stage直下に置くことで、常に表示できるようにする -->
   <div id="custom-alert-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px;">
-    <div style="background:rgba(20,17,13,0.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; max-width:320px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
+    <div style="background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; max-width:320px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
       <div id="custom-alert-message" style="font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; line-height:1.7; white-space:pre-line; margin-bottom:20px;"></div>
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <div id="custom-alert-cancel" style="font-family:'Yomogi', cursive; font-size:13px; color:#a99f8c; padding:6px 14px; cursor:pointer;">キャンセル</div>
