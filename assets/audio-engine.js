@@ -59,13 +59,24 @@ export function getPianoCtx() {
     //      奥行きのある響きに変える。ファイルを追加しないぶん容量・読み込み時間は増えない ----
     try {
       var convolver = pianoCtx.createConvolver();
-      convolver.buffer = createReverbImpulse(pianoCtx, 2.2, 2.6);
+      // IRを短くして、ConvolverNodeの初期化(内部でのFFT前処理)にかかる負荷を減らす。
+      // 長いIRほど「ぶつっ」というノイズの原因になりやすいため、響きの長さと引き換えに短縮する
+      convolver.buffer = createReverbImpulse(pianoCtx, 1.3, 2.8);
       convolver.normalize = true;
       var reverbSend = pianoCtx.createGain();
       reverbSend.gain.value = 0.32; // masterGainのうち、どれだけをリバーブに送るか
       var reverbWet = pianoCtx.createGain();
       reverbWet.gain.value = 0.85; // リバーブ自体の最終的な音量
       masterGain.connect(reverbSend).connect(convolver).connect(reverbWet).connect(compressor);
+
+      // ConvolverNodeは、実際に信号が流れ込む(=最初の1音を弾く)瞬間に重い初期化処理が
+      // 走りやすく、それが「ぶつっ」というノイズの原因になる。ごく短い無音をあらかじめ
+      // リバーブ経路に流しておくことで、実際の1音目より前に初期化を終わらせておく
+      var reverbPrimerBuffer = pianoCtx.createBuffer(1, 1, pianoCtx.sampleRate);
+      var reverbPrimerSrc = pianoCtx.createBufferSource();
+      reverbPrimerSrc.buffer = reverbPrimerBuffer;
+      reverbPrimerSrc.connect(reverbSend);
+      reverbPrimerSrc.start(0);
     } catch (err) { /* ConvolverNode非対応の環境でも、リバーブなしで通常通り鳴らせるようにする */ }
 
     // AudioContextを作った直後、一番最初に鳴らす音が「ぶつっ」と鳴ることがある
