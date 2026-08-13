@@ -984,15 +984,19 @@
   stage.addEventListener('click', goToHome);
   stage.addEventListener('touchend', goToHome);
 
-  let wasPlayingBeforeHidden = false;
-  document.addEventListener('visibilitychange', () => {
-    if(document.hidden){
-      wasPlayingBeforeHidden = !bgm.paused;
-      bgm.pause();
-    } else if(wasPlayingBeforeHidden){
-      bgm.play().catch(()=>{});
-    }
-  });
+  // ★ バックグラウンド再生に対応するため、以前あった「非表示になったら一時停止する」処理は撤去。
+  //   代わりにMedia Session APIでOSのメディアコントロール(ロック画面の再生バー等)に対応させておくと、
+  //   ブラウザ側にも「これは継続すべき正規のメディア再生である」と伝わり、バックグラウンドで
+  //   停止されにくくなる(ただし完全に保証されるものではなく、OS・ブラウザの省電力機能次第)
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'PianoWorks Crescendo',
+      artist: 'PianoWorks',
+      album: 'Crescendo'
+    });
+    navigator.mediaSession.setActionHandler('play', function () { bgm.play().catch(function(){}); });
+    navigator.mediaSession.setActionHandler('pause', function () { bgm.pause(); });
+  }
 
   document.querySelectorAll('.aqbtn').forEach(function(btn){
     function press(e){ btn.classList.add('pressed'); if(e) e.stopPropagation(); }
