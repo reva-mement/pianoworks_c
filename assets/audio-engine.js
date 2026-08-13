@@ -25,6 +25,22 @@ var pianoLoadingPromise = null;
 var masterGain = null;
 var activeSources = {}; // 音程(pitch)ごとに、今鳴っている音を1つだけ保持する(PC版のactiveSources Mapと同じ)
 
+// 新しい音声ファイルを一切追加せず、その場でノイズを指数関数的に減衰させて
+// 擬似的なインパルスレスポンス(IR)を生成する、コード生成リバーブの定番手法。
+// durationSec: 響きの長さ、decay: 減衰カーブの鋭さ(大きいほど早く減衰する)
+function createReverbImpulse(ctx, durationSec, decay) {
+  var sampleRate = ctx.sampleRate;
+  var length = Math.floor(sampleRate * durationSec);
+  var impulse = ctx.createBuffer(2, length, sampleRate);
+  for (var ch = 0; ch < 2; ch++) {
+    var data = impulse.getChannelData(ch);
+    for (var i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+  }
+  return impulse;
+}
+
 export function getPianoCtx() {
   if (!pianoCtx) {
     pianoCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -38,6 +54,19 @@ export function getPianoCtx() {
     masterGain = pianoCtx.createGain();
     masterGain.gain.value = 1.1; // 端末側の音量を無理に下げずに済むよう、控えめな音量にしておく
     masterGain.connect(compressor).connect(pianoCtx.destination);
+
+    // ---- リバーブ(センド/リターン方式)：サンプルをそのまま鳴らすだけの単調さを、
+    //      奥行きのある響きに変える。ファイルを追加しないぶん容量・読み込み時間は増えない ----
+    try {
+      var convolver = pianoCtx.createConvolver();
+      convolver.buffer = createReverbImpulse(pianoCtx, 2.2, 2.6);
+      convolver.normalize = true;
+      var reverbSend = pianoCtx.createGain();
+      reverbSend.gain.value = 0.32; // masterGainのうち、どれだけをリバーブに送るか
+      var reverbWet = pianoCtx.createGain();
+      reverbWet.gain.value = 0.85; // リバーブ自体の最終的な音量
+      masterGain.connect(reverbSend).connect(convolver).connect(reverbWet).connect(compressor);
+    } catch (err) { /* ConvolverNode非対応の環境でも、リバーブなしで通常通り鳴らせるようにする */ }
 
     // AudioContextを作った直後、一番最初に鳴らす音が「ぶつっ」と鳴ることがある
     // (音声パイプラインがまだ準備できていないことによるノイズ)。ごく短い無音を
