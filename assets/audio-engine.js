@@ -57,7 +57,7 @@ var QUALITY_CONFIGS = {
     notes: NORMAL_SAMPLE_NOTES
   },
   // ★ 高音質プリセット：Salamander Grand Piano本家(FreePats配布のFLAC版)を元に、
-  //   16段階のベロシティレイヤー×30音(通常版と同じ短3度間隔)でopus変換(64kbps)したもの。
+  //   16段階のベロシティレイヤー×30音(通常版と同じ短3度間隔)でopus変換(96kbps)したもの。
   //   フォルダ構成：assets/hq/v1〜v16/ 配下に、各<note.n>.opus(例:A0.opus, Ds1.opus)
   high: {
     label: '高音質',
@@ -65,7 +65,7 @@ var QUALITY_CONFIGS = {
     layers: QUALITY_LAYERS_16,
     layerBoundaries: QUALITY_BOUNDARIES_16,
     notes: NORMAL_SAMPLE_NOTES,
-    estimatedSizeMB: 52 // 実測値(30音×16段階、64kbps opus変換後の合計)
+    estimatedSizeMB: 81 // 実測値(30音×16段階、96kbps opus変換後の合計)
   },
   // ★ 超高音質プレースホルダ：高音質(短3度間隔)よりさらに密に、全音(2半音)ごとにサンプリングする案。
   //   まだ実ファイルは無い。用意する時は、フォルダ構成をassets/hq/と同じ形(uhq/v1〜v16/<note.n>.opus)にし、
@@ -339,6 +339,18 @@ function velocityToLayer(v) {
   return layers[layers.length - 1];
 }
 
+// ---- ストレッチチューニング(音律の伸長)：実際のピアノは、低音がわずかに平均律より低く、
+//      高音がわずかに高くチューニングされている(倍音の性質上、そうしないと逆に不自然に聞こえるため)。
+//      Railsbackカーブの簡易近似(中央のA4=69を基準に、両端に向かうほどセントを足し引きする)
+function stretchTuningCents(pitch) {
+  var REF_MIDI = 69; // A4を基準(補正0)にする
+  var diff = pitch - REF_MIDI;
+  if (diff >= 0) {
+    return Math.pow(diff / 39, 2) * 12; // 高音側：C8(diff=39)でおよそ+12セントまで
+  }
+  return -Math.pow(-diff / 48, 2) * 16; // 低音側：A0(diff=-48)でおよそ-16セントまで
+}
+
 // 今すぐ、指定した音程を鳴らす(PC版のplayNoteに相当)。
 // pitch: MIDIノート番号, velocity: 0-100スケール, durationMs: 目安の長さ(省略時は自然な余韻)
 export function playNote(pitch, velocity, durationMs) {
@@ -357,7 +369,13 @@ export function playNote(pitch, velocity, durationMs) {
   if (!buffer) return;
 
   var semitoneDiff = pitch - sample.m;
-  var playbackRate = Math.pow(2, semitoneDiff / 12);
+  // ---- 擬似ラウンドロビン：同じ音を連打すると毎回全く同じ波形で機械的に聞こえる
+  //      (通称「マシンガン現象」)ため、聞こえるか聞こえないかのごくわずかなピッチのゆらぎ
+  //      (±3セント程度)をランダムに加える。新しい音声ファイルは追加しないので容量は変わらない ----
+  var jitterCents = (Math.random() * 2 - 1) * 3;
+  // ---- ストレッチチューニング：音域に応じたセント補正を、上のジッターと一緒に反映する ----
+  var totalCents = semitoneDiff * 100 + stretchTuningCents(pitch) + jitterCents;
+  var playbackRate = Math.pow(2, totalCents / 1200);
 
   var src = ctx.createBufferSource();
   src.buffer = buffer;
@@ -365,12 +383,34 @@ export function playNote(pitch, velocity, durationMs) {
 
   var gainNode = ctx.createGain();
   var v127 = Math.round(velocity / 100 * 127);
-  var peakGain = Math.max(0.15, Math.min(1, v127 / 110));
+  // ---- ベロシティカーブの見直し：これまでは velocity/110 という単純な線形マッピングだったが、
+  //      実際のピアノは弱打域の変化が緩やかで、強打域に近づくほど音量・音色が急激に変わる。
+  //      べき乗カーブ(指数1.6)で、強打側の伸びを強調する非線形マッピングにする ----
+  var v127Norm = Math.max(0, Math.min(1, v127 / 127));
+  var peakGain = Math.max(0.15, Math.min(1, Math.pow(v127Norm, 1.6) * 1.15));
+  // ---- 疑似ラウンドロビン(音量側)：ピッチだけでなく、ごくわずかな音量の差(±4%程度)も
+  //      ランダムに加えて、連打時の均一さをさらに崩す ----
+  peakGain *= 0.96 + Math.random() * 0.08;
+  peakGain = Math.max(0.05, Math.min(1, peakGain));
   // ---- ベロシティに応じたアタック時間：実際のピアノは強く弾くほどハンマーが速く弦を叩くため
   //      アタックが鋭くなり、弱く弾くほど少しゆったり立ち上がる。これまでは常に5ms固定だった ----
   var attackSec = 0.003 + (1 - v127 / 127) * 0.02; // 強打で約3ms、最弱打で約23ms
   gainNode.gain.setValueAtTime(0, now);
   gainNode.gain.linearRampToValueAtTime(peakGain, now + attackSec);
+
+  // ---- ピッチシフトのエイリアシング対策：サンプルの原音から大きく離れた音程ほど、
+  //      ピッチシフトによる耳障りな高域のにじみ(エイリアシング)が出やすいため、
+  //      シフト幅が大きい音だけ、ごく軽いローパスフィルターで高域を丸める ----
+  var filterNode = null;
+  var absSemitoneDiff = Math.abs(semitoneDiff);
+  if (absSemitoneDiff > 1.5) {
+    filterNode = ctx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    // シフト幅が大きいほどカットオフを下げる(目安：0.5半音ごとに約1000Hz下げ、最低8000Hzまで)
+    var cutoff = Math.max(8000, 20000 - (absSemitoneDiff - 1.5) * 1000);
+    filterNode.frequency.value = cutoff;
+    filterNode.Q.value = 0.707;
+  }
 
   // ---- 疑似ステレオ：実際のグランドピアノと同じく、低音は左寄り・高音は右寄りに
   //      わずかに振り分ける。新しい音声ファイルは追加しないので容量は変わらない ----
@@ -383,11 +423,13 @@ export function playNote(pitch, velocity, durationMs) {
     panNode.pan.value = Math.max(-1, Math.min(1, (panNorm - 0.5) * 0.7)); // 振り幅は控えめに(-0.35〜0.35)
   }
 
-  if (panNode) {
-    src.connect(gainNode).connect(panNode).connect(masterGain);
-  } else {
-    src.connect(gainNode).connect(masterGain); // StereoPannerNode非対応環境では、これまで通りモノラルで鳴らす
-  }
+  // src -> (filter) -> gain -> (pan) -> masterGain の順に、あるものだけ繋ぐ
+  var chainHead = src;
+  if (filterNode) { chainHead.connect(filterNode); chainHead = filterNode; }
+  chainHead.connect(gainNode);
+  chainHead = gainNode;
+  if (panNode) { chainHead.connect(panNode); chainHead = panNode; }
+  chainHead.connect(masterGain);
   src.start(now);
 
   activeSources[pitch] = { src: src, gainNode: gainNode, peakGain: peakGain };
