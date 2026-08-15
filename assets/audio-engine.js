@@ -33,17 +33,17 @@ var QUALITY_CONFIGS = {
     layerBoundaries: [45, 95],
     notes: NORMAL_SAMPLE_NOTES
   },
-  // ★ 高音質プリセット：まだ実ファイルが存在しないプレースホルダ。
-  //   実際のファイルを用意する時は、basePath配下に layers×notes ぶんの
-  //   「<layer>/<note.n>.opus」ファイルを配置し、必要ならlayers/layerBoundaries/notesを
-  //   実際のファイル構成(ベロシティ段階数・サンプリング間隔)に合わせて書き換えるだけでよい。
+  // ★ 高音質プリセット：Salamander Grand Piano本家(FreePats配布のFLAC版)を元に、
+  //   16段階のベロシティレイヤー×30音(通常版と同じ短3度間隔)でopus変換(64kbps)したもの。
+  //   フォルダ構成：assets/hq/v1〜v16/ 配下に、各<note.n>.opus(例:A0.opus, Ds1.opus)
   high: {
     label: '高音質',
     basePath: 'assets/hq/',
-    layers: ['soft', 'mid', 'loud'], // TODO: 実ファイル用意時、より多いレイヤー数に差し替え可能
-    layerBoundaries: [45, 95],
-    notes: NORMAL_SAMPLE_NOTES, // TODO: 実ファイル用意時、より密なサンプリング音程リストに差し替え可能
-    estimatedSizeMB: 45 // TODO: 実ファイル用意時、実際の合計サイズ(MB)に書き換える(起動時ダイアログの時間見積りに使う)
+    layers: ['v1','v2','v3','v4','v5','v6','v7','v8','v9','v10','v11','v12','v13','v14','v15','v16'],
+    // velocity(0-127)を16段階に均等割り(127/16≈7.9ごと)したレイヤー境界
+    layerBoundaries: [8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120],
+    notes: NORMAL_SAMPLE_NOTES,
+    estimatedSizeMB: 52 // 実測値(30音×16段階、64kbps opus変換後の合計)
   }
 };
 
