@@ -713,8 +713,18 @@
     <div>最高コンボ：<span id="studio-play-float-combo" style="color:#e8a24a;"></span></div>
   </div>
 
-  <!-- すりガラスデザインの共通アラート/確認モーダル。window.confirm・alertの代わりに使う。
-       どのscene(hidden切り替え)にも属させず、stage直下に置くことで、常に表示できるようにする -->
+  <!-- 高音質読み込み中に画面中央へ表示する進捗バー。Jukeboxのシークバーと同じ配色・角丸で揃えている。
+       表示中はpointer-eventsで画面全体のタップを吸収し、操作を無効化する -->
+  <div id="audio-quality-loading-overlay" style="position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); pointer-events:none;">
+    <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 26px; border-radius:14px; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 10px 28px rgba(0,0,0,0.4);">
+      <div id="audio-quality-loading-label" style="font-family:'Yomogi', cursive; font-size:13px; color:#f3ede0; letter-spacing:0.5px;">高音質を読み込み中…</div>
+      <div style="width:200px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;">
+        <div id="audio-quality-loading-fill" style="position:absolute; top:0; left:0; height:100%; border-radius:3px; background:rgba(232,150,66,0.85); width:0%; transition:width 0.15s ease-out;"></div>
+      </div>
+      <div id="audio-quality-loading-percent" style="font-family:'Yomogi', cursive; font-size:11px; color:#a99f8c;">0%</div>
+    </div>
+  </div>
+
   <div id="custom-alert-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:24px;">
     <div style="background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); border-radius:12px; padding:20px 22px; max-width:320px; box-shadow:0 10px 34px rgba(0,0,0,0.5);">
       <div id="custom-alert-message" style="font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; line-height:1.7; white-space:pre-line; margin-bottom:20px;"></div>
@@ -882,6 +892,28 @@
     var activeLabel = (qualityOptions.filter(function (o) { return o.id === quality; })[0] || {}).label || quality;
     qualityNote.textContent = statusText || activeLabel;
   }
+  // ---- 高音質読み込み中の進捗バー(画面中央)。表示中はpointer-eventsで画面全体のタップを吸収する ----
+  var qualityLoadingOverlay = document.getElementById('audio-quality-loading-overlay');
+  var qualityLoadingFill = document.getElementById('audio-quality-loading-fill');
+  var qualityLoadingPercent = document.getElementById('audio-quality-loading-percent');
+  var qualityLoadingLabel = document.getElementById('audio-quality-loading-label');
+  function showQualityLoadingBar(label) {
+    qualityLoadingLabel.textContent = label || '読み込み中…';
+    qualityLoadingFill.style.width = '0%';
+    qualityLoadingPercent.textContent = '0%';
+    qualityLoadingOverlay.style.display = 'flex';
+    qualityLoadingOverlay.style.pointerEvents = 'auto'; // 表示中は画面全体のタップを吸収し、操作を無効化する
+  }
+  function updateQualityLoadingBar(loaded, total) {
+    var pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+    qualityLoadingFill.style.width = pct + '%';
+    qualityLoadingPercent.textContent = pct + '%';
+  }
+  function hideQualityLoadingBar() {
+    qualityLoadingOverlay.style.display = 'none';
+    qualityLoadingOverlay.style.pointerEvents = 'none';
+  }
+
   function selectAudioQuality(quality) {
     var current = getAudioQuality();
     if (quality === current) return;
@@ -890,12 +922,17 @@
       setAudioQuality('normal').then(function () { renderAudioQualitySelector('normal'); });
       return;
     }
-    // 通常以外へは、まだ読み込んでいなければここでファイルを取得しにいく(遅延読み込み)
+    // 通常以外へは、まだ読み込んでいなければここでファイルを取得しにいく(遅延読み込み)。
+    // 読み込み中は画面中央に進捗バーを出し、操作を無効化する
     renderAudioQualitySelector(quality, '読み込み中…');
-    setAudioQuality(quality).then(function () {
+    var qualityLabelForBar = (getAvailableQualities().filter(function (o) { return o.id === quality; })[0] || {}).label || quality;
+    showQualityLoadingBar(qualityLabelForBar + 'を読み込み中…');
+    setAudioQuality(quality, updateQualityLoadingBar).then(function () {
+      hideQualityLoadingBar();
       renderAudioQualitySelector(quality);
     }).catch(function (err) {
       console.warn(err);
+      hideQualityLoadingBar();
       renderAudioQualitySelector('normal', quality + 'のファイル未配置');
       setTimeout(function () { renderAudioQualitySelector('normal'); }, 2000);
     });
@@ -969,7 +1006,14 @@
           qualityLabel + 'の音源（約' + est.sizeMB + 'MB、目安' + timeLabel + '）を今回もダウンロードしますか？\n' +
           '「いいえ」を選ぶと、通常音質で開始します。'
         ).then(function (keep) {
-          setAudioQuality(keep ? savedQuality : 'normal').catch(function (err) { console.warn(err); });
+          if (!keep) { setAudioQuality('normal').catch(function (err) { console.warn(err); }); return; }
+          showQualityLoadingBar(qualityLabel + 'を読み込み中…');
+          setAudioQuality(savedQuality, updateQualityLoadingBar).then(function () {
+            hideQualityLoadingBar();
+          }).catch(function (err) {
+            hideQualityLoadingBar();
+            console.warn(err);
+          });
         });
       } else {
         loadPianoSamples(); // Jukeboxを開く前に、バックグラウンドで先に読み込みを済ませておく
