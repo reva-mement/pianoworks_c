@@ -611,14 +611,10 @@
         <div id="settings-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
       </div>
       <div style="flex:1; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:0;">
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px;">
-          <div>
-            音質
-            <div id="settings-audio-quality-note" style="font-size:10px; color:#a99f8c; margin-top:3px; letter-spacing:0;">通常</div>
-          </div>
-          <div id="settings-audio-quality-toggle" style="position:relative; width:46px; height:26px; border-radius:13px; background:rgba(169,164,150,0.3); border:1px solid rgba(232,150,66,0.4); cursor:pointer; flex-shrink:0;">
-            <div id="settings-audio-quality-knob" style="position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#efe4cf; transition:left 0.18s ease;"></div>
-          </div>
+        <div style="padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4);">
+          <div style="font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px;">音質</div>
+          <div id="settings-audio-quality-note" style="font-family:'Yomogi', cursive; font-size:10px; color:#a99f8c; margin-top:3px;">通常</div>
+          <div id="settings-audio-quality-group" style="display:flex; gap:6px; margin-top:8px;"></div>
         </div>
         <div id="settings-back-to-title" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">タイトルに戻る</div>
         <div id="settings-quit-app" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">アプリを終了</div>
@@ -661,29 +657,19 @@
       </div>
       <div id="studio-song-list" style="flex:1; overflow-y:auto; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:0;"></div>
     </div>
-  </div>
 
-  <div class="scene hidden" id="scene-studio-play">
-    <div class="studio-playfield" id="studio-playfield"></div>
-    <div id="studio-countdown" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:14; pointer-events:none;">
-      <div id="studio-countdown-bubble" style="width:140px; height:140px; border-radius:50%; border:3px solid rgba(150,150,155,0.9); filter:url(#note-wobble); display:flex; align-items:center; justify-content:center; background:rgba(20,17,13,0.35);">
-        <div id="studio-countdown-number" style="font-family:'Yomogi', cursive; font-size:64px; color:#efe4cf;"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="scene hidden" id="scene-story-list">
-    <div style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:flex; flex-direction:column;">
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; padding-top:calc(16px + env(safe-area-inset-top));">
+    <!-- Story一覧・読む画面：他のオーバーレイ(設定/Jukebox/Studio一覧)と同じく、
+         scene-home内の子要素として実装する(独立scene化するとGPU合成レイヤーが変わり、
+         背景動画のぼかしが異常に強くなる問題があったため、あえて同じ構造に揃えている) -->
+    <div id="story-list-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Story</div>
         <div id="story-list-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
       </div>
       <div id="story-list" style="flex:1; overflow-y:auto; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:0;"></div>
     </div>
-  </div>
 
-  <div class="scene hidden" id="scene-story-read">
-    <div style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:flex; flex-direction:column;">
+    <div id="story-read-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
       <div style="flex:0 0 20%; background:linear-gradient(135deg, rgba(42,36,32,0.6), rgba(58,49,40,0.6)); display:flex; align-items:center; justify-content:center;">
         <div style="font-family:'Yomogi', cursive; font-size:13px; color:#6b675e; letter-spacing:2px;">（ここにイラスト・動画が入ります）</div>
       </div>
@@ -694,8 +680,17 @@
           しおり機能を使えば、途中で閉じても、また同じ場所から読み始めることができます。
         </div>
       </div>
+      <div id="story-read-close" style="position:absolute; left:14px; bottom:14px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
     </div>
-    <div id="story-read-close" style="position:absolute; left:14px; bottom:calc(14px + env(safe-area-inset-bottom)); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
+  </div>
+
+  <div class="scene hidden" id="scene-studio-play">
+    <div class="studio-playfield" id="studio-playfield"></div>
+    <div id="studio-countdown" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:14; pointer-events:none;">
+      <div id="studio-countdown-bubble" style="width:140px; height:140px; border-radius:50%; border:3px solid rgba(150,150,155,0.9); filter:url(#note-wobble); display:flex; align-items:center; justify-content:center; background:rgba(20,17,13,0.35);">
+        <div id="studio-countdown-number" style="font-family:'Yomogi', cursive; font-size:64px; color:#efe4cf;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Studioの曲ごとの詳細(MAX SCORE・accuracyグラフ)を見るためのモーダル -->
@@ -757,7 +752,7 @@
   import { initSkinList, openSkinList } from './assets/skin.js';
   import { initStudio } from './assets/studio.js';
   import { initStory, openStoryList } from './assets/story.js';
-  import { getPianoCtx, loadPianoSamples, getAudioQuality, setAudioQuality, estimateQualityDownload } from './assets/audio-engine.js';
+  import { getPianoCtx, loadPianoSamples, getAudioQuality, setAudioQuality, estimateQualityDownload, getAvailableQualities } from './assets/audio-engine.js';
 
   initSkinList();
   initStudio();
@@ -846,7 +841,7 @@
 
   function openSettings(){
     document.getElementById('settings-overlay').style.display = 'flex';
-    renderAudioQualityToggle(getAudioQuality()); // 開くたびに、実際の現在の設定に合わせて表示を更新する
+    renderAudioQualitySelector(getAudioQuality()); // 開くたびに、実際の現在の設定に合わせて表示を更新する
   }
   function closeSettings(){
     document.getElementById('settings-overlay').style.display = 'none';
@@ -856,37 +851,50 @@
     closeSettings();
   });
 
-  // ---- 音質トグル(通常/高音質)。高音質のファイル一式が未配置の環境では、
-  //      タップしても読み込みに失敗し、自動的に「通常」へ戻る ----
-  var qualityToggle = document.getElementById('settings-audio-quality-toggle');
-  var qualityKnob = document.getElementById('settings-audio-quality-knob');
+  // ---- 音質セレクタ(通常/高音質/超高音質)。ファイル一式が未配置のプリセットを選ぶと、
+  //      タップ時に読み込みに失敗し、自動的に「通常」へ戻る ----
+  var qualityGroup = document.getElementById('settings-audio-quality-group');
   var qualityNote = document.getElementById('settings-audio-quality-note');
-  function renderAudioQualityToggle(quality, statusText) {
-    var isHigh = quality === 'high';
-    qualityKnob.style.left = isHigh ? '22px' : '2px';
-    qualityToggle.style.background = isHigh ? 'rgba(232,150,66,0.55)' : 'rgba(169,164,150,0.3)';
-    qualityNote.textContent = statusText || (isHigh ? '高音質' : '通常');
+  var qualityOptions = getAvailableQualities(); // [{id:'normal',label:'通常'}, {id:'high',label:'高音質'}, ...]
+  qualityOptions.forEach(function (opt) {
+    var btn = document.createElement('div');
+    btn.dataset.qualityId = opt.id;
+    btn.textContent = opt.label;
+    btn.style.cssText = 'flex:1; text-align:center; padding:7px 4px; border-radius:8px; font-family:\'Yomogi\', cursive; font-size:12px; cursor:pointer; border:1px solid rgba(232,150,66,0.4); color:#a99f8c; background:transparent;';
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      selectAudioQuality(opt.id);
+    });
+    qualityGroup.appendChild(btn);
+  });
+  function renderAudioQualitySelector(quality, statusText) {
+    qualityGroup.querySelectorAll('[data-quality-id]').forEach(function (btn) {
+      var active = btn.dataset.qualityId === quality;
+      btn.style.background = active ? 'rgba(232,150,66,0.55)' : 'transparent';
+      btn.style.color = active ? '#efe4cf' : '#a99f8c';
+    });
+    var activeLabel = (qualityOptions.filter(function (o) { return o.id === quality; })[0] || {}).label || quality;
+    qualityNote.textContent = statusText || activeLabel;
   }
-  renderAudioQualityToggle(getAudioQuality());
-  qualityToggle.addEventListener('click', function (e) {
-    e.stopPropagation();
+  function selectAudioQuality(quality) {
     var current = getAudioQuality();
-    var next = current === 'high' ? 'normal' : 'high';
-    if (next === 'normal') {
+    if (quality === current) return;
+    if (quality === 'normal') {
       // 通常に戻すだけなら、既存のファイルを使うので即座に切り替えられる
-      setAudioQuality('normal').then(function () { renderAudioQualityToggle('normal'); });
+      setAudioQuality('normal').then(function () { renderAudioQualitySelector('normal'); });
       return;
     }
-    // 高音質へは、まだ読み込んでいなければここでファイルを取得しにいく(遅延読み込み)
-    renderAudioQualityToggle('high', '読み込み中…');
-    setAudioQuality('high').then(function () {
-      renderAudioQualityToggle('high');
+    // 通常以外へは、まだ読み込んでいなければここでファイルを取得しにいく(遅延読み込み)
+    renderAudioQualitySelector(quality, '読み込み中…');
+    setAudioQuality(quality).then(function () {
+      renderAudioQualitySelector(quality);
     }).catch(function (err) {
       console.warn(err);
-      renderAudioQualityToggle('normal', '高音質ファイル未配置');
-      setTimeout(function () { renderAudioQualityToggle('normal'); }, 2000);
+      renderAudioQualitySelector('normal', quality + 'のファイル未配置');
+      setTimeout(function () { renderAudioQualitySelector('normal'); }, 2000);
     });
-  });
+  }
+  renderAudioQualitySelector(getAudioQuality());
 
   document.getElementById('settings-back-to-title').addEventListener('click', async function(e){
     e.stopPropagation();
@@ -940,20 +948,22 @@
       var ctx = getPianoCtx();
       if (ctx.state === 'suspended') ctx.resume();
 
-      // 前回「高音質」を選んでいた場合、Web版では回線状況によってダウンロードに
-      // 時間がかかることがあるため、無言で自動ダウンロードせず、予想サイズ・時間を
+      // 前回「通常」以外(高音質・超高音質等)を選んでいた場合、Web版では回線状況によって
+      // ダウンロードに時間がかかることがあるため、無言で自動ダウンロードせず、予想サイズ・時間を
       // 明記した上でユーザーに選び直してもらう(情報を持った上で選択できるように)
-      if (getAudioQuality() === 'high') {
-        var est = estimateQualityDownload('high');
+      var savedQuality = getAudioQuality();
+      if (savedQuality !== 'normal') {
+        var qualityLabel = (getAvailableQualities().filter(function (o) { return o.id === savedQuality; })[0] || {}).label || savedQuality;
+        var est = estimateQualityDownload(savedQuality);
         var timeLabel = est.estimatedSeconds >= 60
           ? Math.ceil(est.estimatedSeconds / 60) + '分程度'
           : est.estimatedSeconds + '秒程度';
         window.showCustomConfirm(
-          '前回「高音質」が選択されています。\n' +
-          '高音質の音源（約' + est.sizeMB + 'MB、目安' + timeLabel + '）を今回もダウンロードしますか？\n' +
+          '前回「' + qualityLabel + '」が選択されています。\n' +
+          qualityLabel + 'の音源（約' + est.sizeMB + 'MB、目安' + timeLabel + '）を今回もダウンロードしますか？\n' +
           '「いいえ」を選ぶと、通常音質で開始します。'
-        ).then(function (keepHigh) {
-          setAudioQuality(keepHigh ? 'high' : 'normal').catch(function (err) { console.warn(err); });
+        ).then(function (keep) {
+          setAudioQuality(keep ? savedQuality : 'normal').catch(function (err) { console.warn(err); });
         });
       } else {
         loadPianoSamples(); // Jukeboxを開く前に、バックグラウンドで先に読み込みを済ませておく
