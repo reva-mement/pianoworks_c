@@ -21,26 +21,6 @@ var NORMAL_SAMPLE_NOTES = [
   {n:'C8',m:108}
 ];
 
-// MIDIノート番号から、Salamanderと同じ命名規則(例:21→'A0', 63→'Ds4')の音名を作る
-var CHROMATIC_NAMES = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
-function midiToNoteName(midi) {
-  var name = CHROMATIC_NAMES[((midi % 12) + 12) % 12];
-  var octave = Math.floor(midi / 12) - 1; // MIDI 60 = 'C4'(中央ド)になる、一般的な対応
-  return name + octave;
-}
-// 指定した間隔(半音数)で、startMidi〜endMidiの音名リストを生成する
-// (密度を上げたプリセット用。全音ごとなら2、半音ごと=88鍵フルなら1を指定する)
-function buildNoteList(startMidi, endMidi, stepSemitones) {
-  var list = [];
-  for (var m = startMidi; m <= endMidi; m += stepSemitones) {
-    list.push({ n: midiToNoteName(m), m: m });
-  }
-  // 一番上の鍵盤(C8=108)を必ず含めておく(step次第では届かないことがあるため)
-  if (list[list.length - 1].m !== endMidi) list.push({ n: midiToNoteName(endMidi), m: endMidi });
-  return list;
-}
-var ULTRA_SAMPLE_NOTES = buildNoteList(21, 108, 2); // 全音(2半音)ごと、約45音
-
 // ---- 音質プリセット ----
 // 各プリセットは「どのフォルダから」「どんな強弱レイヤー名で」「どの音程のサンプルを」読むかを持つ。
 // layerBoundaries は、velocity(0-127)をどのレイヤーに振り分けるかの閾値。
@@ -56,9 +36,9 @@ var QUALITY_CONFIGS = {
     layerBoundaries: [45, 95],
     notes: NORMAL_SAMPLE_NOTES
   },
-  // ★ 高音質プリセット：Salamander Grand Piano本家(FreePats配布のFLAC版)を元に、
-  //   16段階のベロシティレイヤー×30音(通常版と同じ短3度間隔)でopus変換(96kbps)したもの。
-  //   フォルダ構成：assets/hq/v1〜v16/ 配下に、各<note.n>.opus(例:A0.opus, Ds1.opus)
+  // 高音質プリセット：Salamander Grand Piano本家(FreePats配布のFLAC版)を元に、
+  // 16段階のベロシティレイヤー×30音(通常版と同じ短3度間隔)でopus変換(96kbps)したもの。
+  // フォルダ構成：assets/hq/v1〜v16/ 配下に、各<note.n>.opus(例:A0.opus, Ds1.opus)
   high: {
     label: '高音質',
     basePath: 'assets/hq/',
@@ -66,17 +46,6 @@ var QUALITY_CONFIGS = {
     layerBoundaries: QUALITY_BOUNDARIES_16,
     notes: NORMAL_SAMPLE_NOTES,
     estimatedSizeMB: 81 // 実測値(30音×16段階、96kbps opus変換後の合計)
-  },
-  // ★ 超高音質プレースホルダ：高音質(短3度間隔)よりさらに密に、全音(2半音)ごとにサンプリングする案。
-  //   まだ実ファイルは無い。用意する時は、フォルダ構成をassets/hq/と同じ形(uhq/v1〜v16/<note.n>.opus)にし、
-  //   ULTRA_SAMPLE_NOTES(約45音)ぶんのファイルを置けば動く
-  ultra: {
-    label: '超高音質',
-    basePath: 'assets/uhq/',
-    layers: QUALITY_LAYERS_16,
-    layerBoundaries: QUALITY_BOUNDARIES_16,
-    notes: ULTRA_SAMPLE_NOTES,
-    estimatedSizeMB: 78 // TODO: 実ファイル用意時、実測値に書き換える(今は30→45音への単純比例で概算)
   }
 };
 
@@ -105,6 +74,7 @@ var loadedQualityOfPromise = null; // pianoLoadingPromiseがどの音質を指�
 var masterGain = null;
 var activeSources = {}; // 音程(pitch)ごとに、今鳴っている音を1つだけ保持する(PC版のactiveSources Mapと同じ)
 
+// 今どの音質が選ばれているか(保存された設定 > デフォルト'normal')を返す。
 // 今どの音質が選ばれているか(保存された設定 > デフォルト'normal')を返す
 export function getAudioQuality() {
   try {
