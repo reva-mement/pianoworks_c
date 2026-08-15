@@ -45,37 +45,23 @@ function renderStoryList() {
 }
 
 export function openStoryList() {
-  // ホーム画面は非表示にせず、後ろに残したまま重ねる(すりガラス効果が実際にホーム画面を透かして見えるように)
-  document.getElementById('scene-story-list').classList.remove('hidden');
+  document.getElementById('story-list-overlay').style.display = 'flex';
   renderStoryList();
 }
 
 export function closeStoryList() {
-  document.getElementById('scene-story-list').classList.add('hidden');
+  document.getElementById('story-list-overlay').style.display = 'none';
 }
 
 export function openStoryRead(story) {
   // 現時点では中身はダミー固定。将来的にはstory.idごとに動画・曲・テキストを出し分ける
-  var listScene = document.getElementById('scene-story-list');
-  var readScene = document.getElementById('scene-story-read');
-
-  readScene.classList.remove('hidden'); // 先にreadを見せておき、その上で一覧ページがめくれて消える
-  readScene.style.zIndex = '1';
-  listScene.style.zIndex = '2';
-  listScene.classList.add('page-turn-left');
-
-  listScene.addEventListener('animationend', function onEnd() {
-    listScene.removeEventListener('animationend', onEnd);
-    listScene.classList.add('hidden');
-    listScene.classList.remove('page-turn-left');
-    listScene.style.zIndex = '';
-    readScene.style.zIndex = '';
-  });
+  document.getElementById('story-list-overlay').style.display = 'none';
+  document.getElementById('story-read-overlay').style.display = 'flex';
 }
 
 export function closeStoryRead() {
-  document.getElementById('scene-story-read').classList.add('hidden');
-  document.getElementById('scene-story-list').classList.remove('hidden');
+  document.getElementById('story-read-overlay').style.display = 'none';
+  document.getElementById('story-list-overlay').style.display = 'flex';
 }
 
 export function initStory() {
