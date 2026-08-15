@@ -116,12 +116,18 @@ function confirmSkinSelection() {
 
 export function openSkinList() {
   pendingSkinId = currentSkinId; // 開き直すたびに、今の決定済みスキンから選び直す
-  document.getElementById('skin-overlay').style.display = 'flex';
+  var el = document.getElementById('skin-overlay');
+  el.style.display = 'flex';
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { el.style.opacity = '1'; });
+  });
   renderSkinList();
 }
 
 export function closeSkinList() {
-  document.getElementById('skin-overlay').style.display = 'none';
+  var el = document.getElementById('skin-overlay');
+  el.style.opacity = '0';
+  setTimeout(function () { el.style.display = 'none'; }, 900);
 }
 
 export function getCurrentSkinId() {

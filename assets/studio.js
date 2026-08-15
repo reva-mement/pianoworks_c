@@ -779,13 +779,19 @@ function renderStudioSongList() {
 
 // Studioボタンを押した時に開く、曲一覧画面
 export function openStudioList() {
-  document.getElementById('studio-list-overlay').style.display = 'flex';
+  var el = document.getElementById('studio-list-overlay');
+  el.style.display = 'flex';
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { el.style.opacity = '1'; });
+  });
   fadeBgm(0, 500);
   renderStudioSongList();
 }
 
 export function closeStudioList() {
-  document.getElementById('studio-list-overlay').style.display = 'none';
+  var el = document.getElementById('studio-list-overlay');
+  el.style.opacity = '0';
+  setTimeout(function () { el.style.display = 'none'; }, 900);
   fadeBgm(0.7, 500); // Jukeboxと同じ基準音量に戻す
 }
 

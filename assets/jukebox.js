@@ -743,6 +743,9 @@ export function initJukebox() {
 
   els.btnJukebox.addEventListener('click', function () {
     els.overlay.style.display = 'flex';
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { els.overlay.style.opacity = '1'; });
+    });
     renderJukeboxList();
     loadPianoSamples();
     fadeBgm(0, 500);
@@ -751,7 +754,8 @@ export function initJukebox() {
   els.close.addEventListener('click', function (e) {
     e.stopPropagation();
     stopJukeboxPlayback();
-    els.overlay.style.display = 'none';
+    els.overlay.style.opacity = '0';
+    setTimeout(function () { els.overlay.style.display = 'none'; }, 900);
     fadeBgm(0.7, 500); // index.htmlで設定しているBGMの基準音量と揃える
   });
 

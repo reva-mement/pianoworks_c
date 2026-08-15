@@ -44,24 +44,37 @@ function renderStoryList() {
   });
 }
 
+function showOverlay(id) {
+  var el = document.getElementById(id);
+  el.style.display = 'flex';
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { el.style.opacity = '1'; });
+  });
+}
+function hideOverlay(id) {
+  var el = document.getElementById(id);
+  el.style.opacity = '0';
+  setTimeout(function () { el.style.display = 'none'; }, 900);
+}
+
 export function openStoryList() {
-  document.getElementById('story-list-overlay').style.display = 'flex';
+  showOverlay('story-list-overlay');
   renderStoryList();
 }
 
 export function closeStoryList() {
-  document.getElementById('story-list-overlay').style.display = 'none';
+  hideOverlay('story-list-overlay');
 }
 
 export function openStoryRead(story) {
   // 現時点では中身はダミー固定。将来的にはstory.idごとに動画・曲・テキストを出し分ける
-  document.getElementById('story-list-overlay').style.display = 'none';
-  document.getElementById('story-read-overlay').style.display = 'flex';
+  hideOverlay('story-list-overlay');
+  showOverlay('story-read-overlay');
 }
 
 export function closeStoryRead() {
-  document.getElementById('story-read-overlay').style.display = 'none';
-  document.getElementById('story-list-overlay').style.display = 'flex';
+  hideOverlay('story-read-overlay');
+  showOverlay('story-list-overlay');
 }
 
 export function initStory() {
