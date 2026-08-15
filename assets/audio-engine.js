@@ -101,9 +101,9 @@ currentQuality = getAudioQuality();
 
 // 設定画面のトグルなどから呼ぶ。指定した音質の音源を読み込み(まだなら)、
 // 読み込めたらそちらに切り替える。失敗したら'normal'に自動で戻し、rejectする。
-export function setAudioQuality(quality) {
+export function setAudioQuality(quality, onProgress) {
   if (!QUALITY_CONFIGS[quality]) return Promise.reject(new Error('unknown quality: ' + quality));
-  return loadPianoSamples(quality).then(function (result) {
+  return loadPianoSamples(quality, onProgress).then(function (result) {
     if (!result.ok) {
       // 指定した音質のファイルが用意されていない/読み込みに失敗した場合は、通常音質に自動で戻す
       currentQuality = 'normal';
@@ -187,6 +187,7 @@ export function getPianoCtx() {
 }
 
 // quality省略時は、現在アクティブな音質(なければ保存済み設定 > 'normal')を読み込む。
+// onProgress(loaded, total) が渡されていれば、1ファイル完了するごとに呼ばれる(進捗バー表示用)。
 // 戻り値は { ok, successCount, failCount } を解決するPromise。
 // jobs配列を、同時実行数(concurrency)を超えないよう順番に処理していく。
 // 一斉に大量並行実行すると音声処理スレッドが詰まりポップノイズの原因になるため、
@@ -210,7 +211,7 @@ function runWithConcurrencyLimit(jobs, concurrency, worker) {
   });
 }
 
-export function loadPianoSamples(quality) {
+export function loadPianoSamples(quality, onProgress) {
   var targetQuality = quality || currentQuality || getAudioQuality();
   // 既にこの音質を読み込み中/読み込み済みなら、そのPromiseを使い回す
   if (pianoLoadingPromise && loadedQualityOfPromise === targetQuality) return pianoLoadingPromise;
@@ -229,6 +230,7 @@ export function loadPianoSamples(quality) {
 
   var successCount = 0;
   var failCount = 0;
+  var totalJobs = jobs.length;
   // ★ 一斉に大量並行で読み込む(especially高音質は480ファイル)と、fetch/decodeAudioDataの
   //   負荷でメインスレッドが詰まり、その間鳴っている音がポップノイズになることがあるため、
   //   同時実行数を絞ったバッチ処理にして、音声再生への影響を抑える
@@ -238,6 +240,7 @@ export function loadPianoSamples(quality) {
     return fetchSampleWithRetry(url, ctx, targetQuality === 'normal' ? 2 : 0).then(function (decoded) {
       if (decoded) { buffers[job.layer][job.note] = decoded; successCount++; }
       else { failCount++; }
+      if (onProgress) onProgress(successCount + failCount, totalJobs);
     });
   }).then(function () {
     var total = successCount + failCount;
