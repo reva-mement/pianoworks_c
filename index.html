@@ -594,7 +594,7 @@
       </div>
     </div>
 
-    <div id="skin-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+    <div id="skin-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20; opacity:0; transition:opacity 0.9s ease;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">スキン</div>
         <div id="skin-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
@@ -605,7 +605,7 @@
       </div>
     </div>
 
-    <div id="settings-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+    <div id="settings-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20; opacity:0; transition:opacity 0.9s ease;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">設定</div>
         <div id="settings-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
@@ -621,7 +621,7 @@
       </div>
     </div>
 
-    <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+    <div id="jukebox-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20; opacity:0; transition:opacity 0.9s ease;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Jukebox</div>
         <div id="jukebox-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
@@ -650,7 +650,7 @@
       </div>
     </div>
 
-    <div id="studio-list-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+    <div id="studio-list-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20; opacity:0; transition:opacity 0.9s ease;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Studio</div>
         <div id="studio-list-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
@@ -661,7 +661,7 @@
     <!-- Story一覧・読む画面：他のオーバーレイ(設定/Jukebox/Studio一覧)と同じく、
          scene-home内の子要素として実装する(独立scene化するとGPU合成レイヤーが変わり、
          背景動画のぼかしが異常に強くなる問題があったため、あえて同じ構造に揃えている) -->
-    <div id="story-list-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+    <div id="story-list-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20; opacity:0; transition:opacity 0.9s ease;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
         <div style="font-family:'Yomogi', cursive; font-size:20px; color:#efe4cf;">Story</div>
         <div id="story-list-close" style="color:#efe4cf; font-size:22px; padding:4px 10px; cursor:pointer;">×</div>
@@ -669,7 +669,7 @@
       <div id="story-list" style="flex:1; overflow-y:auto; padding:0 16px 16px 16px; display:flex; flex-direction:column; gap:0;"></div>
     </div>
 
-    <div id="story-read-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20;">
+    <div id="story-read-overlay" style="position:absolute; inset:0; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:none; flex-direction:column; z-index:20; opacity:0; transition:opacity 0.9s ease;">
       <div style="flex:0 0 20%; background:linear-gradient(135deg, rgba(42,36,32,0.6), rgba(58,49,40,0.6)); display:flex; align-items:center; justify-content:center;">
         <div style="font-family:'Yomogi', cursive; font-size:13px; color:#6b675e; letter-spacing:2px;">（ここにイラスト・動画が入ります）</div>
       </div>
@@ -840,11 +840,17 @@
   window.showCustomConfirm = function (message) { return showCustomModal(message, true); };
 
   function openSettings(){
-    document.getElementById('settings-overlay').style.display = 'flex';
+    var el = document.getElementById('settings-overlay');
+    el.style.display = 'flex';
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { el.style.opacity = '1'; });
+    });
     renderAudioQualitySelector(getAudioQuality()); // 開くたびに、実際の現在の設定に合わせて表示を更新する
   }
   function closeSettings(){
-    document.getElementById('settings-overlay').style.display = 'none';
+    var el = document.getElementById('settings-overlay');
+    el.style.opacity = '0';
+    setTimeout(function () { el.style.display = 'none'; }, 900);
   }
   document.getElementById('settings-close').addEventListener('click', function(e){
     e.stopPropagation();
