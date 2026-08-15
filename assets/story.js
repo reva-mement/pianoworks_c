@@ -88,6 +88,19 @@ export function openStoryRead(story) {
   currentStory = story;
   currentPageIndex = 0;
   isFlipping = false;
+
+  // 破れエフェクト用レイヤーを初期状態にリセット（前回の読了時の状態が残らないように）
+  var frontEl = document.getElementById('story-tear-front');
+  var whiteEl = document.getElementById('story-tear-white');
+  var backEl = document.getElementById('story-tear-back');
+  [frontEl, whiteEl, backEl].forEach(function (el) {
+    if (!el) return;
+    el.style.animation = 'none';
+    el.style.clipPath = 'none';
+  });
+  if (whiteEl) whiteEl.style.visibility = 'hidden';
+  if (backEl) backEl.style.visibility = 'hidden';
+
   renderCurrentPage();
 
   hideOverlay('story-list-overlay');
@@ -100,7 +113,7 @@ function getPages() {
 
 function renderCurrentPage() {
   var pages = getPages();
-  var textEl = document.querySelector('#story-page-current .story-page-text');
+  var textEl = document.querySelector('#story-tear-front .story-page-text');
   var indicator = document.getElementById('story-page-indicator');
   if (textEl) textEl.textContent = pages[currentPageIndex] || '';
   if (indicator) indicator.textContent = (currentPageIndex + 1) + ' / ' + pages.length;
@@ -112,17 +125,111 @@ function renderCurrentPage() {
   if (nextZone) nextZone.style.cursor = currentPageIndex < pages.length - 1 ? 'pointer' : 'default';
 }
 
-// direction: 1 = 次のページへ（右→左にめくる）, -1 = 前のページへ（左→右にめくる）
+// ================================================================
+// ページめくり：不規則な鋸歯状（ギザギザ）の破れエフェクト
+// story_pageflip_v4_step15_bugfixed.jsx のロジックをそのままvanilla JSへ移植したもの。
+// ================================================================
+var tearAnimCounter = 0;
+var TEAR_DURATION_MS = 480;
+
+// 高さHの範囲を、4〜9pxのランダムな帯（歯）に分割する。
+// 各歯には、先端(tip)がどれだけ奥まで飛び出るかを決めるamplitude(px)を持たせる。
+function generateTeeth(H, W) {
+  var teeth = [];
+  var y = 0;
+  while (y < H) {
+    var toothHeight = 4 + Math.random() * 5;
+    var h = (y + toothHeight > H) ? (H - y) : toothHeight;
+    // amplitude: 中間地点で、境界からどれだけ奥(まだ見えている側)へ尖って残るか。
+    // 画面幅の4%〜50%でランダムに散らす
+    var amplitude = (0.04 + Math.random() * 0.46) * W;
+    teeth.push({ yStart: y, yEnd: y + h, amplitude: amplitude });
+    y += h;
+  }
+  return teeth;
+}
+
+// mirror=false: 通常（右→左に破れる。次のページへ進む時）
+// mirror=true : 左右反転した境界形状（左→右に破れる。前のページへ戻る時）
+function mx(x, W, mirror) {
+  return mirror ? (W - x) : x;
+}
+
+// notchBaseX: その瞬間の「谷」の基準位置（歯と歯の間はここに揃う）
+// tipExtraRatio: 0なら谷と同じ（ギザギザなし）。1に近いほど、歯の中間地点だけ
+//                amplitudeぶん奥へ飛び出る
+function buildPolygon(teeth, notchBaseX, tipExtraRatio, W, H, mirror) {
+  var pts = [];
+  function pt(x, y) { pts.push(mx(x, W, mirror) + 'px ' + y + 'px'); }
+  pt(0, 0);
+  teeth.forEach(function (t) {
+    var tipX = notchBaseX + t.amplitude * tipExtraRatio;
+    var midY = (t.yStart + t.yEnd) / 2;
+    pt(notchBaseX, t.yStart);
+    pt(tipX, midY);
+  });
+  pt(notchBaseX, H);
+  pt(0, H);
+  return 'polygon(' + pts.join(',') + ')';
+}
+
+// 開始(0%)：ページ全体が見えている（長方形、ギザギザなし）
+// 中間(48%)：半分ほど千切れつつ、ギザギザが最大に開く
+// 終了(100%)：完全に千切れて消える（長方形、ギザギザなし）
+function buildTearKeyframesCss(teeth, animName, W, H, mirror) {
+  var clip0 = buildPolygon(teeth, W, 0, W, H, mirror);
+  var clip50 = buildPolygon(teeth, W * 0.42, 1, W, H, mirror);
+  var clip100 = buildPolygon(teeth, 0, 0, W, H, mirror);
+  // front（現在のページ）用：ギザギザを持たない、まっすぐな境界線だけ（常にtipExtraRatio=0）
+  var flat0 = buildPolygon(teeth, W, 0, W, H, mirror);
+  var flat50 = buildPolygon(teeth, W * 0.42, 0, W, H, mirror);
+  var flat100 = buildPolygon(teeth, 0, 0, W, H, mirror);
+  return '@keyframes ' + animName + '-clip {' +
+    ' 0% { clip-path: ' + clip0 + '; }' +
+    ' 48% { clip-path: ' + clip50 + '; }' +
+    ' 100% { clip-path: ' + clip100 + '; }' +
+    ' }' +
+    '@keyframes ' + animName + '-flat {' +
+    ' 0% { clip-path: ' + flat0 + '; }' +
+    ' 48% { clip-path: ' + flat50 + '; }' +
+    ' 100% { clip-path: ' + flat100 + '; }' +
+    ' }';
+}
+
+function getTearKeyframesStyleEl() {
+  var el = document.getElementById('story-tear-keyframes');
+  if (!el) {
+    el = document.createElement('style');
+    el.id = 'story-tear-keyframes';
+    document.head.appendChild(el);
+  }
+  return el;
+}
+
+// direction: 1 = 次のページへ（右から破れて次ページが見える）, -1 = 前のページへ（左から破れる）
 function flipToPage(direction) {
   if (isFlipping) return; // アニメーション中の連打を無視
   var pages = getPages();
   var targetIndex = currentPageIndex + direction;
   if (targetIndex < 0 || targetIndex >= pages.length) return;
 
-  var flipEl = document.getElementById('story-page-flip');
-  var frontTextEl = flipEl ? flipEl.querySelector('.story-page-flip-front .story-page-text') : null;
-  if (!flipEl || !frontTextEl) {
+  var viewport = document.getElementById('story-page-viewport');
+  var frontEl = document.getElementById('story-tear-front');
+  var whiteEl = document.getElementById('story-tear-white');
+  var backEl = document.getElementById('story-tear-back');
+  var frontTextEl = frontEl ? frontEl.querySelector('.story-page-text') : null;
+  var backTextEl = backEl ? backEl.querySelector('.story-page-text') : null;
+
+  if (!viewport || !frontEl || !whiteEl || !backEl || !frontTextEl || !backTextEl) {
     // 万一DOMが無ければアニメーションなしで即切り替え
+    currentPageIndex = targetIndex;
+    renderCurrentPage();
+    return;
+  }
+
+  var W = viewport.clientWidth;
+  var H = viewport.clientHeight;
+  if (W <= 0 || H <= 0) {
     currentPageIndex = targetIndex;
     renderCurrentPage();
     return;
@@ -130,35 +237,37 @@ function flipToPage(direction) {
 
   isFlipping = true;
 
-  // めくられる側（表面）には、今まさに画面に見えているページの文章を複製する。
-  // 下地(#story-page-current)は先に次のページへ更新しておき、
-  // めくり終わってこの層が消えた瞬間に自然につながるようにする。
-  frontTextEl.textContent = pages[currentPageIndex];
+  // 破れていく先（back）には、次に見せるページの文章を先に入れておく
+  backTextEl.textContent = pages[targetIndex];
   currentPageIndex = targetIndex;
-  renderCurrentPage();
+  renderCurrentPage(); // frontの表示はこの時点ではまだ古いページのまま（アニメーションで置き換える）
 
-  flipEl.classList.remove('flipping');
-  flipEl.classList.toggle('flip-prev', direction < 0);
-  flipEl.style.transform = 'rotateY(0deg)';
-  flipEl.style.visibility = 'visible';
+  var teeth = generateTeeth(H, W);
+  var animName = 'story-tear-' + (tearAnimCounter++);
+  var mirror = direction < 0;
+  getTearKeyframesStyleEl().textContent = buildTearKeyframesCss(teeth, animName, W, H, mirror);
 
-  // 一度リフローを挟んでから transform を変えないと、開始角度がtransitionに乗ってしまう
-  requestAnimationFrame(function () {
-    requestAnimationFrame(function () {
-      flipEl.classList.add('flipping');
-      flipEl.style.transform = direction > 0 ? 'rotateY(-180deg)' : 'rotateY(180deg)';
-    });
-  });
+  backEl.style.visibility = 'visible';
+  whiteEl.style.visibility = 'visible';
+  whiteEl.style.animation = animName + '-clip ' + TEAR_DURATION_MS + 'ms linear forwards';
+  frontEl.style.animation = animName + '-flat ' + TEAR_DURATION_MS + 'ms linear forwards';
 
-  var onEnd = function (e) {
-    if (e && e.target !== flipEl) return;
-    flipEl.removeEventListener('transitionend', onEnd);
-    flipEl.classList.remove('flipping');
-    flipEl.style.visibility = 'hidden';
-    flipEl.style.transform = 'rotateY(0deg)';
+  setTimeout(function () {
+    // 破れ終わったので、frontを新しいページの内容に差し替えて全面表示に戻し、
+    // white/backは非表示に戻す（次回のめくりに備えてリセット）
+    frontEl.style.animation = 'none';
+    frontEl.style.clipPath = 'none';
+    frontTextEl.textContent = pages[currentPageIndex];
+
+    whiteEl.style.animation = 'none';
+    whiteEl.style.visibility = 'hidden';
+    whiteEl.style.clipPath = 'none';
+
+    backEl.style.visibility = 'hidden';
+    backEl.style.clipPath = 'none';
+
     isFlipping = false;
-  };
-  flipEl.addEventListener('transitionend', onEnd);
+  }, TEAR_DURATION_MS + 30);
 }
 
 export function closeStoryRead() {
