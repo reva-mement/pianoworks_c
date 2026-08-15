@@ -715,7 +715,7 @@
 
   <!-- 高音質読み込み中に画面中央へ表示する進捗バー。Jukeboxのシークバーと同じ配色・角丸で揃えている。
        表示中はpointer-eventsで画面全体のタップを吸収し、操作を無効化する -->
-  <div id="audio-quality-loading-overlay" style="position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); pointer-events:none;">
+  <div id="audio-quality-loading-overlay" style="position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); pointer-events:none;">
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 26px; border-radius:14px; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 10px 28px rgba(0,0,0,0.4);">
       <div id="audio-quality-loading-label" style="font-family:'Yomogi', cursive; font-size:13px; color:#f3ede0; letter-spacing:0.5px;">高音質を読み込み中…</div>
       <div style="width:200px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;">
