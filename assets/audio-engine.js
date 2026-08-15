@@ -178,6 +178,28 @@ export function getPianoCtx() {
 
 // quality省略時は、現在アクティブな音質(なければ保存済み設定 > 'normal')を読み込む。
 // 戻り値は { ok, successCount, failCount } を解決するPromise。
+// jobs配列を、同時実行数(concurrency)を超えないよう順番に処理していく。
+// 一斉に大量並行実行すると音声処理スレッドが詰まりポップノイズの原因になるため、
+// (特に480ファイルにもなる高音質読み込みで)これで負荷を平準化する
+function runWithConcurrencyLimit(jobs, concurrency, worker) {
+  return new Promise(function (resolve) {
+    var index = 0;
+    var remaining = jobs.length;
+    if (remaining === 0) { resolve(); return; }
+    function runNext() {
+      if (index >= jobs.length) return;
+      var job = jobs[index++];
+      worker(job).then(function () {
+        remaining--;
+        if (remaining <= 0) resolve();
+        else runNext();
+      });
+    }
+    var starters = Math.min(concurrency, jobs.length);
+    for (var i = 0; i < starters; i++) runNext();
+  });
+}
+
 export function loadPianoSamples(quality) {
   var targetQuality = quality || currentQuality || getAudioQuality();
   // 既にこの音質を読み込み中/読み込み済みなら、そのPromiseを使い回す
@@ -188,20 +210,26 @@ export function loadPianoSamples(quality) {
   var buffers = {};
   config.layers.forEach(function (layer) { buffers[layer] = {}; });
 
-  var tasks = [];
-  var successCount = 0;
-  var failCount = 0;
+  var jobs = [];
   config.layers.forEach(function (layer) {
     config.notes.forEach(function (sn) {
-      var url = config.basePath + layer + '/' + sn.n + '.opus';
-      tasks.push(fetchSampleWithRetry(url, ctx, targetQuality === 'normal' ? 2 : 0).then(function (decoded) {
-        if (decoded) { buffers[layer][sn.n] = decoded; successCount++; }
-        else { failCount++; }
-      }));
+      jobs.push({ layer: layer, note: sn.n });
     });
   });
 
-  var promise = Promise.all(tasks).then(function () {
+  var successCount = 0;
+  var failCount = 0;
+  // ★ 一斉に大量並行で読み込む(especially高音質は480ファイル)と、fetch/decodeAudioDataの
+  //   負荷でメインスレッドが詰まり、その間鳴っている音がポップノイズになることがあるため、
+  //   同時実行数を絞ったバッチ処理にして、音声再生への影響を抑える
+  var CONCURRENCY = 6;
+  var promise = runWithConcurrencyLimit(jobs, CONCURRENCY, function (job) {
+    var url = config.basePath + job.layer + '/' + job.note + '.opus';
+    return fetchSampleWithRetry(url, ctx, targetQuality === 'normal' ? 2 : 0).then(function (decoded) {
+      if (decoded) { buffers[job.layer][job.note] = decoded; successCount++; }
+      else { failCount++; }
+    });
+  }).then(function () {
     var total = successCount + failCount;
     console.log('Piano samples loaded [' + targetQuality + ']: ' + successCount + ' 成功 / ' + failCount + ' 失敗 (合計' + total + ')');
     // 1つも読み込めなかった場合のみ失敗扱いにする(ファイルがまだ用意されていないケースを想定)。
