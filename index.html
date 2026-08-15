@@ -534,21 +534,18 @@
     margin-bottom:10px;
   }
 
-  /* ---- Story：ページめくりエフェクト ----
-     本のページをめくる演出。実際に動くのは「めくり中の1枚」(#story-page-flip)だけで、
-     それ以外は静的な#story-page-currentの上に一瞬だけ重なる形にすることで、
-     ページ数が増えてもDOM構造が複雑化しないようにしている。 */
+  /* ---- Story：ページめくりエフェクト（不規則な鋸歯状の破れで次/前ページを見せる） ----
+     3枚のレイヤーを重ねる構成：
+       story-tear-back  … めくった先のページ（常に等倍で下敷き、アニメーションはさせない）
+       story-tear-white … 破れ目の「紙の断面」に見立てた白レイヤー（ギザギザの先端が奥まで飛び出る）
+       story-tear-front … 今表示中のページ（直線的な境界だけで、まっすぐ引っ込んでいく）
+     white側だけ先端(tip)がfront側の境界より奥まで飛び出るようにすることで、
+     境界線上に白いギザギザだけがのぞく「破れ紙」の質感になる。
+     clip-pathの形は毎回JS側でランダム生成し、<style id="story-tear-keyframes">に注入する。 */
   .story-page-viewport{
     flex:1;
     position:relative;
     overflow:hidden;
-    perspective:1600px;
-  }
-  .story-page{
-    position:absolute; inset:0;
-    overflow-y:auto;
-    padding:24px 22px;
-    box-sizing:border-box;
   }
   .story-page-text{
     font-family:'Yomogi', cursive;
@@ -558,6 +555,28 @@
     letter-spacing:0.5px;
     white-space:pre-wrap;
   }
+  .story-tear-layer{
+    position:absolute; inset:0;
+    box-sizing:border-box;
+  }
+  .story-tear-back, .story-tear-front{
+    overflow-y:auto;
+    padding:24px 22px;
+    background:#131009;
+  }
+  .story-tear-back{
+    visibility:hidden;
+    z-index:1;
+  }
+  .story-tear-white{
+    background:#efe9dc;
+    visibility:hidden;
+    z-index:2;
+    pointer-events:none;
+  }
+  .story-tear-front{
+    z-index:3;
+  }
   /* 左右の見えないタップ領域。左＝前のページ、右＝次のページ（本を読む時の自然な操作感に合わせる） */
   .story-page-tap-zone{
     position:absolute; top:0; bottom:0; width:38%;
@@ -565,63 +584,6 @@
   }
   .story-page-tap-zone-left{ left:0; }
   .story-page-tap-zone-right{ right:0; }
-
-  /* めくり中の1枚。普段は非表示にしておき、めくる瞬間だけ表示→アニメーション→非表示に戻す */
-  .story-page-flip{
-    position:absolute; inset:0;
-    visibility:hidden;
-    transform-style:preserve-3d;
-    transform:rotateY(0deg);
-    transform-origin:right center;
-    pointer-events:none;
-  }
-  .story-page-flip.flipping{
-    transition:transform 0.62s cubic-bezier(0.45,0.05,0.35,1);
-  }
-  /* 前ページに戻る時は左端を軸にする */
-  .story-page-flip.flip-prev{
-    transform-origin:left center;
-  }
-  .story-page-flip-face{
-    position:absolute; inset:0;
-    backface-visibility:hidden;
-    overflow:hidden;
-    box-sizing:border-box;
-  }
-  /* 表面＝めくられていく側。めくり始めた瞬間の見た目が#story-page-currentと同じになるよう、
-     同じpadding・フォント設定を#story-page-textで共有している */
-  .story-page-flip-front{
-    background:rgba(10,9,7,0.92);
-    padding:24px 22px;
-  }
-  .story-page-flip-front .story-page-text{
-    height:100%;
-  }
-  /* 裏面＝紙の裏側。文字は入れず、質感のグラデーションのみ（実際の紙のような明暗差を演出） */
-  .story-page-flip-back{
-    background:linear-gradient(135deg, rgba(58,49,40,0.96), rgba(32,27,22,0.96));
-    transform:rotateY(180deg);
-  }
-  .story-page-flip-back::after{
-    content:"";
-    position:absolute; inset:0;
-    background:linear-gradient(100deg, rgba(0,0,0,0.35), rgba(0,0,0,0) 35%, rgba(0,0,0,0) 65%, rgba(0,0,0,0.35));
-  }
-  /* めくれている最中、下の静止ページとの境目に薄い影を落として「浮いている」立体感を出す */
-  .story-page-flip::before{
-    content:"";
-    position:absolute; inset:0;
-    background:linear-gradient(to left, rgba(0,0,0,0.45), rgba(0,0,0,0) 40%);
-    opacity:0;
-    transition:opacity 0.62s ease;
-    pointer-events:none;
-  }
-  .story-page-flip.flip-prev::before{
-    background:linear-gradient(to right, rgba(0,0,0,0.45), rgba(0,0,0,0) 40%);
-  }
-  .story-page-flip.flipping::before{
-    opacity:1;
-  }
 </style>
 </head>
 <body>
@@ -763,16 +725,14 @@
         <div style="font-family:'Yomogi', cursive; font-size:13px; color:#6b675e; letter-spacing:2px;">（ここにイラスト・動画が入ります）</div>
       </div>
 
-      <!-- ページめくりビューポート：左右の見えないタップ領域＋現在ページ＋めくり中の1枚だけの動的レイヤーで構成 -->
+      <!-- ページめくりビューポート：破れ紙エフェクト用の3レイヤー（back/white/front）＋左右タップ領域 -->
       <div id="story-page-viewport" class="story-page-viewport">
-        <div id="story-page-current" class="story-page">
+        <div id="story-tear-back" class="story-tear-layer story-tear-back">
           <div class="story-page-text"></div>
         </div>
-        <div id="story-page-flip" class="story-page-flip">
-          <div class="story-page-flip-face story-page-flip-front">
-            <div class="story-page-text"></div>
-          </div>
-          <div class="story-page-flip-face story-page-flip-back"></div>
+        <div id="story-tear-white" class="story-tear-layer story-tear-white"></div>
+        <div id="story-tear-front" class="story-tear-layer story-tear-front">
+          <div class="story-page-text"></div>
         </div>
         <div id="story-page-prev-zone" class="story-page-tap-zone story-page-tap-zone-left" aria-label="前のページ"></div>
         <div id="story-page-next-zone" class="story-page-tap-zone story-page-tap-zone-right" aria-label="次のページ"></div>
