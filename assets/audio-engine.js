@@ -21,10 +21,33 @@ var NORMAL_SAMPLE_NOTES = [
   {n:'C8',m:108}
 ];
 
+// MIDIノート番号から、Salamanderと同じ命名規則(例:21→'A0', 63→'Ds4')の音名を作る
+var CHROMATIC_NAMES = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
+function midiToNoteName(midi) {
+  var name = CHROMATIC_NAMES[((midi % 12) + 12) % 12];
+  var octave = Math.floor(midi / 12) - 1; // MIDI 60 = 'C4'(中央ド)になる、一般的な対応
+  return name + octave;
+}
+// 指定した間隔(半音数)で、startMidi〜endMidiの音名リストを生成する
+// (密度を上げたプリセット用。全音ごとなら2、半音ごと=88鍵フルなら1を指定する)
+function buildNoteList(startMidi, endMidi, stepSemitones) {
+  var list = [];
+  for (var m = startMidi; m <= endMidi; m += stepSemitones) {
+    list.push({ n: midiToNoteName(m), m: m });
+  }
+  // 一番上の鍵盤(C8=108)を必ず含めておく(step次第では届かないことがあるため)
+  if (list[list.length - 1].m !== endMidi) list.push({ n: midiToNoteName(endMidi), m: endMidi });
+  return list;
+}
+var ULTRA_SAMPLE_NOTES = buildNoteList(21, 108, 2); // 全音(2半音)ごと、約45音
+
 // ---- 音質プリセット ----
 // 各プリセットは「どのフォルダから」「どんな強弱レイヤー名で」「どの音程のサンプルを」読むかを持つ。
 // layerBoundaries は、velocity(0-127)をどのレイヤーに振り分けるかの閾値。
 // 配列の要素数はlayers配列より1つ少ない(例：layers 3つなら閾値2つ)。
+var QUALITY_LAYERS_16 = ['v1','v2','v3','v4','v5','v6','v7','v8','v9','v10','v11','v12','v13','v14','v15','v16'];
+var QUALITY_BOUNDARIES_16 = [8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120];
+
 var QUALITY_CONFIGS = {
   normal: {
     label: '通常',
@@ -39,11 +62,21 @@ var QUALITY_CONFIGS = {
   high: {
     label: '高音質',
     basePath: 'assets/hq/',
-    layers: ['v1','v2','v3','v4','v5','v6','v7','v8','v9','v10','v11','v12','v13','v14','v15','v16'],
-    // velocity(0-127)を16段階に均等割り(127/16≈7.9ごと)したレイヤー境界
-    layerBoundaries: [8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120],
+    layers: QUALITY_LAYERS_16,
+    layerBoundaries: QUALITY_BOUNDARIES_16,
     notes: NORMAL_SAMPLE_NOTES,
     estimatedSizeMB: 52 // 実測値(30音×16段階、64kbps opus変換後の合計)
+  },
+  // ★ 超高音質プレースホルダ：高音質(短3度間隔)よりさらに密に、全音(2半音)ごとにサンプリングする案。
+  //   まだ実ファイルは無い。用意する時は、フォルダ構成をassets/hq/と同じ形(uhq/v1〜v16/<note.n>.opus)にし、
+  //   ULTRA_SAMPLE_NOTES(約45音)ぶんのファイルを置けば動く
+  ultra: {
+    label: '超高音質',
+    basePath: 'assets/uhq/',
+    layers: QUALITY_LAYERS_16,
+    layerBoundaries: QUALITY_BOUNDARIES_16,
+    notes: ULTRA_SAMPLE_NOTES,
+    estimatedSizeMB: 78 // TODO: 実ファイル用意時、実測値に書き換える(今は30→45音への単純比例で概算)
   }
 };
 
@@ -76,9 +109,16 @@ var activeSources = {}; // 音程(pitch)ごとに、今鳴っている音を1つ
 export function getAudioQuality() {
   try {
     var saved = localStorage.getItem(AUDIO_QUALITY_STORAGE_KEY);
-    if (saved === 'high' || saved === 'normal') return saved;
+    if (saved && QUALITY_CONFIGS[saved]) return saved;
   } catch (err) { /* localStorage不可の環境では無視してデフォルトを使う */ }
   return 'normal';
+}
+
+// 選択可能な音質の一覧({id, label}の配列)を、設定画面のUI構築用に返す
+export function getAvailableQualities() {
+  return Object.keys(QUALITY_CONFIGS).map(function (id) {
+    return { id: id, label: QUALITY_CONFIGS[id].label };
+  });
 }
 
 function saveAudioQuality(quality) {
@@ -92,10 +132,10 @@ currentQuality = getAudioQuality();
 // 設定画面のトグルなどから呼ぶ。指定した音質の音源を読み込み(まだなら)、
 // 読み込めたらそちらに切り替える。失敗したら'normal'に自動で戻し、rejectする。
 export function setAudioQuality(quality) {
-  if (quality !== 'normal' && quality !== 'high') return Promise.reject(new Error('unknown quality: ' + quality));
+  if (!QUALITY_CONFIGS[quality]) return Promise.reject(new Error('unknown quality: ' + quality));
   return loadPianoSamples(quality).then(function (result) {
     if (!result.ok) {
-      // 高音質ファイルが用意されていない/読み込みに失敗した場合は、通常音質に自動で戻す
+      // 指定した音質のファイルが用意されていない/読み込みに失敗した場合は、通常音質に自動で戻す
       currentQuality = 'normal';
       saveAudioQuality('normal');
       return Promise.reject(new Error('failed to load "' + quality + '" quality samples (fell back to normal)'));
