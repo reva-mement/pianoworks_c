@@ -162,13 +162,14 @@ function mx(x, W, mirror) {
 
 // notchBaseX: その瞬間の「谷」の基準位置（歯と歯の間はここに揃う）
 // tipExtraRatio: 0なら谷と同じ（ギザギザなし）。1に近いほど、歯の中間地点だけ
-//                amplitudeぶん奥へ飛び出る
+//                amplitudeぶん「破れていく側」へ突き出る（★歯の向きを反転：以前は逆側=まだ
+//                見えている側へ飛び出ていたが、破れる方向へ尖るように変更）
 function buildPolygon(teeth, notchBaseX, tipExtraRatio, W, H, mirror) {
   var pts = [];
   function pt(x, y) { pts.push(mx(x, W, mirror) + 'px ' + y + 'px'); }
   pt(0, 0);
   teeth.forEach(function (t) {
-    var tipX = notchBaseX + t.amplitude * tipExtraRatio;
+    var tipX = notchBaseX - t.amplitude * tipExtraRatio;
     var midY = (t.yStart + t.yEnd) / 2;
     pt(notchBaseX, t.yStart);
     pt(tipX, midY);
@@ -256,8 +257,12 @@ function flipToPage(direction) {
   whiteEl.style.visibility = 'visible';
   whiteEl.style.animationPlayState = 'running';
   frontEl.style.animationPlayState = 'running';
-  whiteEl.style.animation = animName + '-clip ' + TEAR_DURATION_MS + 'ms linear forwards';
-  frontEl.style.animation = animName + '-flat ' + TEAR_DURATION_MS + 'ms linear forwards';
+  // ★歯の向きを反転：白レイヤーを常にnotchBaseぴったりの直線境界(-flat)にし、
+  //   代わりに黒の前面レイヤー側に、歯の中間地点だけ内側(まだ見えている側)へ
+  //   引っ込むギザギザ(-clip、buildPolygonのtipXが notchBase - amplitude*ratio になった)
+  //   を持たせる。これにより、白が黒の前面に食い込むように見える向きになる。
+  whiteEl.style.animation = animName + '-flat ' + TEAR_DURATION_MS + 'ms linear forwards';
+  frontEl.style.animation = animName + '-clip ' + TEAR_DURATION_MS + 'ms linear forwards';
 
   if (DEBUG_PAUSE_TEAR_AT_PEAK) {
     // ★デバッグ用：キーフレームの48%（ギザギザが最大に開く地点）付近で一時停止する。
