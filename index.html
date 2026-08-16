@@ -769,7 +769,7 @@
         <div id="story-page-indicator" style="font-family:'Yomogi', cursive; font-size:12px; letter-spacing:1px; color:#a99f8c;">1 / 1</div>
       </div>
 
-      <div id="story-read-close" style="position:absolute; left:14px; bottom:14px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
+      <div id="story-read-close" style="position:absolute; right:14px; bottom:14px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
     </div>
   </div>
 
@@ -843,6 +843,10 @@
 
   <audio id="bgm" loop preload="auto">
     <source src="assets/opening-bgm.mp3" type="audio/mpeg">
+  </audio>
+  <!-- Storyモード中に強制再生するテーマ曲（Jukeboxの特典曲と同じ音源） -->
+  <audio id="story-theme-bgm" loop preload="auto">
+    <source src="assets/bonus-theme-full.mp3" type="audio/mpeg">
   </audio>
 </div>
 
