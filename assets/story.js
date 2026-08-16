@@ -132,6 +132,11 @@ function renderCurrentPage() {
 var tearAnimCounter = 0;
 var TEAR_DURATION_MS = 480;
 
+// ★デバッグ用フラグ：trueにすると、めくりアニメーションを最後まで進めず、
+// ギザギザが最大に開く48%地点で一時停止したまま止める（形の確認・調整用）。
+// 確認が終わったら false に戻すこと。
+var DEBUG_PAUSE_TEAR_AT_PEAK = true;
+
 // 高さHの範囲を、4〜9pxのランダムな帯（歯）に分割する。
 // 各歯には、先端(tip)がどれだけ奥まで飛び出るかを決めるamplitude(px)を持たせる。
 function generateTeeth(H, W) {
@@ -249,8 +254,21 @@ function flipToPage(direction) {
 
   backEl.style.visibility = 'visible';
   whiteEl.style.visibility = 'visible';
+  whiteEl.style.animationPlayState = 'running';
+  frontEl.style.animationPlayState = 'running';
   whiteEl.style.animation = animName + '-clip ' + TEAR_DURATION_MS + 'ms linear forwards';
   frontEl.style.animation = animName + '-flat ' + TEAR_DURATION_MS + 'ms linear forwards';
+
+  if (DEBUG_PAUSE_TEAR_AT_PEAK) {
+    // ★デバッグ用：キーフレームの48%（ギザギザが最大に開く地点）付近で一時停止する。
+    // isFlippingはtrueのままにしておき、以降のタップでは進行しない
+    // （＝止まった状態をそのまま確認できる。DEBUG_PAUSE_TEAR_AT_PEAKをfalseに戻せば通常動作に戻る）
+    setTimeout(function () {
+      frontEl.style.animationPlayState = 'paused';
+      whiteEl.style.animationPlayState = 'paused';
+    }, TEAR_DURATION_MS * 0.48);
+    return;
+  }
 
   setTimeout(function () {
     // 破れ終わったので、frontを新しいページの内容に差し替えて全面表示に戻し、
