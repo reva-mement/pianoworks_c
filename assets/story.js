@@ -99,7 +99,16 @@ export function openStoryRead(story) {
     el.style.clipPath = 'none';
   });
   if (whiteEl) whiteEl.style.visibility = 'hidden';
-  if (backEl) backEl.style.visibility = 'hidden';
+  if (backEl) {
+    backEl.style.visibility = 'hidden';
+    backEl.style.transition = 'none';
+    backEl.style.backgroundColor = '#efe9dc';
+    var backTextElReset = backEl.querySelector('.story-page-text');
+    if (backTextElReset) {
+      backTextElReset.style.transition = 'none';
+      backTextElReset.style.opacity = '0';
+    }
+  }
 
   renderCurrentPage();
 
@@ -135,7 +144,12 @@ var TEAR_DURATION_MS = 480;
 // ★デバッグ用フラグ：trueにすると、めくりアニメーションを最後まで進めず、
 // ギザギザが最大に開く48%地点で一時停止したまま止める（形の確認・調整用）。
 // 確認が終わったら false に戻すこと。
-var DEBUG_PAUSE_TEAR_AT_PEAK = true;
+var DEBUG_PAUSE_TEAR_AT_PEAK = false;
+
+// 破れ終わって次ページ（白紙）が完全に露出してから、本来の背景色・文章へ
+// クロスフェードするまでの「白紙のまま静止する」時間と、クロスフェード自体の時間
+var WHITE_HOLD_MS = 160;
+var CROSSFADE_MS = 550;
 
 // 高さHの範囲を、4〜9pxのランダムな帯（歯）に分割する。
 // 各歯には、先端(tip)がどれだけ奥まで飛び出るかを決めるamplitude(px)を持たせる。
@@ -276,20 +290,41 @@ function flipToPage(direction) {
   }
 
   setTimeout(function () {
-    // 破れ終わったので、frontを新しいページの内容に差し替えて全面表示に戻し、
-    // white/backは非表示に戻す（次回のめくりに備えてリセット）
-    frontEl.style.animation = 'none';
-    frontEl.style.clipPath = 'none';
-    frontTextEl.textContent = pages[currentPageIndex];
+    // 破れきった瞬間：backは白紙のまま完全に露出している状態（文章はまだopacity:0）。
+    // ここで少し静止(WHITE_HOLD_MS)してから、backの背景色と文章をクロスフェードで
+    // 本来の見た目（暗い背景＋文章）へ持っていく。
+    setTimeout(function () {
+      backEl.style.transition = 'background-color ' + CROSSFADE_MS + 'ms ease';
+      backTextEl.style.transition = 'opacity ' + CROSSFADE_MS + 'ms ease';
+      // 次のフレームでスタイルを変えないとtransitionが乗らないことがあるため一拍置く
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          backEl.style.backgroundColor = '#131009';
+          backTextEl.style.opacity = '1';
+        });
+      });
 
-    whiteEl.style.animation = 'none';
-    whiteEl.style.visibility = 'hidden';
-    whiteEl.style.clipPath = 'none';
+      setTimeout(function () {
+        // クロスフェードも終わったので、frontを新しいページの内容に差し替えて全面表示に戻し、
+        // white/backは非表示に戻す（次回のめくりに備えてリセット）
+        frontEl.style.animation = 'none';
+        frontEl.style.clipPath = 'none';
+        frontTextEl.textContent = pages[currentPageIndex];
 
-    backEl.style.visibility = 'hidden';
-    backEl.style.clipPath = 'none';
+        whiteEl.style.animation = 'none';
+        whiteEl.style.visibility = 'hidden';
+        whiteEl.style.clipPath = 'none';
 
-    isFlipping = false;
+        backEl.style.visibility = 'hidden';
+        backEl.style.clipPath = 'none';
+        backEl.style.transition = 'none';
+        backEl.style.backgroundColor = '#efe9dc'; // 次回のめくりに備えて白紙へ戻す
+        backTextEl.style.transition = 'none';
+        backTextEl.style.opacity = '0';
+
+        isFlipping = false;
+      }, CROSSFADE_MS + 30);
+    }, WHITE_HOLD_MS);
   }, TEAR_DURATION_MS + 30);
 }
 
