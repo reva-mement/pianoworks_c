@@ -9,28 +9,28 @@ var STORIES = [
     available: true,
     pages: [
       // ―― 起 ――
-      '森の奥に、一台のピアノがある。\n\n誰が運び込んだのかは、もう誰も知らない。苔むした鍵盤の上に、木漏れ日だけが静かに落ちている。',
+      '森は、もう何も歌わない。\n\n灰色に色を失った木々の合間に、一台のピアノだけが、かつての音を覚えている。',
 
-      '少女の名は、紬（つむぎ）。\n\n毎晩、月が高くなる頃にここへやって来ては、ひとり鍵盤に指を置く。糸を紡ぐように、細く小さな音を一つ、また一つ。',
+      '少女には、名前がない。\n\n名前もまた、この森がとうに食べてしまったものの一つだから。ただ鍵盤の前に座り、指を置くことだけを覚えている。',
 
-      '紬の音は、いつも小さい。\n\n強く弾こうとすると、指が止まってしまう。大きな音は、まるで何かを壊してしまいそうで、怖かったから。',
+      '強く弾いてはいけない。\n\n大きな音を鳴らすたび、森はまた一本、音もなく立ち枯れていく。だから少女は、いつも囁くような音しか出さない。',
 
       // ―― 承 ――
-      '「大きくしなくていいの。育てるの。」\n\nそう教えてくれたのは、もういない祖母だった。crescendo（クレッシェンド）――少しずつ、少しずつ、音を大きくしていく記号。',
+      'かつて、誰かがここで、同じ鍵盤に触れていた。\n\nその輪郭はもう思い出せない。ただ「crescendo」という書きかけの楽譜だけが、少女の中に残っている。',
 
-      '紬は毎晩、同じフレーズを繰り返した。\n\npp、p、mp……ほんの少しだけ、昨日より強く。森の木々も、その分だけ耳をすませているような気がした。',
+      '少女は、その続きを弾こうとした。\n\n一音重ねるたび、森の色がまた一つ、静かに失われていく。それでも、指は止まらなかった。',
 
-      'けれどある夜、指が震えて止まった。\n\nこれ以上大きくしたら、この静かな森に、自分の音がふさわしくなくなる気がして。紬は鍵盤に手を置いたまま、動けなくなった。',
+      '――これを弾き終えたら、何が残るのだろう。\n\n森のように、自分の記憶もいつか、音もなく枯れていくのかもしれない。少女の指が、震えながら止まる。',
 
       // ―― 転 ――
-      '沈黙の中、一匹の蛍が鍵盤の上に降りた。\n\n小さな光が、ふ、ふ、と瞬く。まるで――止まっている紬の心臓のリズムを、そっと数えているように。',
+      'ふと、少女は気づいてしまう。\n\nあの「誰か」の顔も、声も、もう思い出せない。もしかしたら、最初からそんな人はいなかったのかもしれない――そんな気さえした。',
 
-      '「大きな音は、壊すためのものじゃない。」\n\n祖母の声が、記憶の底からよみがえる。\n\n――届けるためのものだよ、紬。\n\n震える指先に、紬はもう一度、そっと力を込めた。',
+      'それでも。\n\n誰かがいた証も、いなかった証も、どちらもここにはない。ならば、この楽譜を弾き終えることだけが、少女に残された唯一の答えだった。',
 
       // ―― 結 ――
-      '一音、また一音。震えながらも、紬の音は少しずつ大きくなっていく。\n\n森中の蛍が、その音に呼応するように、ひとつ、またひとつと灯り始めた。',
+      '最後の一音に向かって、少女は鍵盤を強く踏み込む。\n\n森が、音もなく崩れ落ちていく。何かを失うことでしか、辿り着けない場所があった。',
 
-      '気づけば森全体が、紬のcrescendoに包まれていた。\n\n弾き終えた鍵盤に手を置いたまま、紬は小さく笑う。――届いた、と思った。\n\n（第2夜へつづく）'
+      '弾き終えたピアノは、二度と鳴らない。\n\nそれでも少女は、静かに微笑んでいた。――これでよかったのだと、誰かに言われた気がしたから。\n\n（第2夜へつづく）'
     ]
   },
   { id: 'night2', title: '第2夜', available: false, pages: [] },
@@ -141,15 +141,27 @@ function getPages() {
 function renderCurrentPage() {
   var pages = getPages();
   var textEl = document.querySelector('#story-tear-front .story-page-text');
-  var indicator = document.getElementById('story-page-indicator');
   if (textEl) textEl.textContent = pages[currentPageIndex] || '';
+  updatePageIndicatorAndNav();
+}
+
+// インジケーター（1 / 10 など）と、両端でのナビ無効化だけを更新する。
+// front側のテキストには触れない（めくりアニメーション中に誤って先読みさせないため）。
+function updatePageIndicatorAndNav() {
+  var pages = getPages();
+  var indicator = document.getElementById('story-page-indicator');
   if (indicator) indicator.textContent = (currentPageIndex + 1) + ' / ' + pages.length;
 
-  // 現在地に合わせて、両端でのタップを無効化（前ページが無い/次ページが無い場合は反応させない）
   var prevZone = document.getElementById('story-page-prev-zone');
   var nextZone = document.getElementById('story-page-next-zone');
-  if (prevZone) prevZone.style.cursor = currentPageIndex > 0 ? 'pointer' : 'default';
-  if (nextZone) nextZone.style.cursor = currentPageIndex < pages.length - 1 ? 'pointer' : 'default';
+  var prevBtn = document.getElementById('story-page-prev-btn');
+  var nextBtn = document.getElementById('story-page-next-btn');
+  var hasPrev = currentPageIndex > 0;
+  var hasNext = currentPageIndex < pages.length - 1;
+  if (prevZone) prevZone.style.cursor = hasPrev ? 'pointer' : 'default';
+  if (nextZone) nextZone.style.cursor = hasNext ? 'pointer' : 'default';
+  if (prevBtn) prevBtn.classList.toggle('story-page-nav-btn-disabled', !hasPrev);
+  if (nextBtn) nextBtn.classList.toggle('story-page-nav-btn-disabled', !hasNext);
 }
 
 // ================================================================
@@ -165,9 +177,10 @@ var TEAR_DURATION_MS = 480;
 var DEBUG_PAUSE_TEAR_AT_PEAK = false;
 
 // 破れ終わって次ページ（白紙）が完全に露出してから、本来の背景色・文章へ
-// クロスフェードするまでの「白紙のまま静止する」時間と、クロスフェード自体の時間
-var WHITE_HOLD_MS = 160;
-var CROSSFADE_MS = 1100;
+// 進んでいくまでの各段階の時間
+var WHITE_HOLD_MS = 160;   // 白紙のまま静止する時間
+var TEXT_POP_MS = 220;     // 白紙の上にテキストがすっと表示されるまでの時間
+var CROSSFADE_MS = 1100;   // テキスト表示後、背景が白から本来の色へフェードインする時間
 
 // 高さHの範囲を、4〜9pxのランダムな帯（歯）に分割する。
 // 各歯には、先端(tip)がどれだけ奥まで飛び出るかを決めるamplitude(px)を持たせる。
@@ -275,10 +288,13 @@ function flipToPage(direction) {
 
   isFlipping = true;
 
-  // 破れていく先（back）には、次に見せるページの文章を先に入れておく
+  // 破れていく先（back）には、次に見せるページの文章を先に入れておく。
+  // ★frontEl（今見えている面）のテキストはまだ書き換えない――アニメーションが
+  //   終わるまでは古いページのままにしておくことで、ボタンを押した瞬間に
+  //   次ページが一瞬見えてしまう不具合を防ぐ。インジケーターだけは即時更新してよい。
   backTextEl.textContent = pages[targetIndex];
   currentPageIndex = targetIndex;
-  renderCurrentPage(); // frontの表示はこの時点ではまだ古いページのまま（アニメーションで置き換える）
+  updatePageIndicatorAndNav();
 
   var teeth = generateTeeth(H, W);
   var animName = 'story-tear-' + (tearAnimCounter++);
@@ -307,41 +323,49 @@ function flipToPage(direction) {
     return;
   }
 
+  // 流れ：▶を押す → 歯のエフェクト(TEAR_DURATION_MS) → 白い画面 → 少し静止(WHITE_HOLD_MS)
+  //      → 次ページのテキストが表示(TEXT_POP_MS) → 背景がフェードイン(CROSSFADE_MS) → frontへスワップ
   setTimeout(function () {
     // 破れきった瞬間：backは白紙のまま完全に露出している状態（文章はまだopacity:0）。
-    // ここで少し静止(WHITE_HOLD_MS)してから、backの背景色と文章をクロスフェードで
-    // 本来の見た目（暗い背景＋文章）へ持っていく。
     setTimeout(function () {
-      backEl.style.transition = 'background-color ' + CROSSFADE_MS + 'ms ease';
-      backTextEl.style.transition = 'opacity ' + CROSSFADE_MS + 'ms ease';
-      // 次のフレームでスタイルを変えないとtransitionが乗らないことがあるため一拍置く
+      // 先にテキストだけを、白い紙の上にすっと表示する
+      backTextEl.style.transition = 'opacity ' + TEXT_POP_MS + 'ms ease';
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          backEl.style.backgroundColor = '#131009';
           backTextEl.style.opacity = '1';
         });
       });
 
       setTimeout(function () {
-        // クロスフェードも終わったので、frontを新しいページの内容に差し替えて全面表示に戻し、
-        // white/backは非表示に戻す（次回のめくりに備えてリセット）
-        frontEl.style.animation = 'none';
-        frontEl.style.clipPath = 'none';
-        frontTextEl.textContent = pages[currentPageIndex];
+        // テキストが表示された状態のまま、背景だけを白から本来の暗い色へフェードイン
+        backEl.style.transition = 'background-color ' + CROSSFADE_MS + 'ms ease';
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            backEl.style.backgroundColor = '#131009';
+          });
+        });
 
-        whiteEl.style.animation = 'none';
-        whiteEl.style.visibility = 'hidden';
-        whiteEl.style.clipPath = 'none';
+        setTimeout(function () {
+          // クロスフェードも終わったので、frontを新しいページの内容に差し替えて全面表示に戻し、
+          // white/backは非表示に戻す（次回のめくりに備えてリセット）
+          frontEl.style.animation = 'none';
+          frontEl.style.clipPath = 'none';
+          frontTextEl.textContent = pages[currentPageIndex];
 
-        backEl.style.visibility = 'hidden';
-        backEl.style.clipPath = 'none';
-        backEl.style.transition = 'none';
-        backEl.style.backgroundColor = '#efe9dc'; // 次回のめくりに備えて白紙へ戻す
-        backTextEl.style.transition = 'none';
-        backTextEl.style.opacity = '0';
+          whiteEl.style.animation = 'none';
+          whiteEl.style.visibility = 'hidden';
+          whiteEl.style.clipPath = 'none';
 
-        isFlipping = false;
-      }, CROSSFADE_MS + 30);
+          backEl.style.visibility = 'hidden';
+          backEl.style.clipPath = 'none';
+          backEl.style.transition = 'none';
+          backEl.style.backgroundColor = '#efe9dc'; // 次回のめくりに備えて白紙へ戻す
+          backTextEl.style.transition = 'none';
+          backTextEl.style.opacity = '0';
+
+          isFlipping = false;
+        }, CROSSFADE_MS + 30);
+      }, TEXT_POP_MS + 30);
     }, WHITE_HOLD_MS);
   }, TEAR_DURATION_MS + 30);
 }
@@ -377,6 +401,21 @@ export function initStory() {
   var nextZone = document.getElementById('story-page-next-zone');
   if (nextZone) {
     nextZone.addEventListener('click', function (e) {
+      e.stopPropagation();
+      flipToPage(1);
+    });
+  }
+
+  var prevBtn = document.getElementById('story-page-prev-btn');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      flipToPage(-1);
+    });
+  }
+  var nextBtn = document.getElementById('story-page-next-btn');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       flipToPage(1);
     });
