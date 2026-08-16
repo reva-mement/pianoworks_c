@@ -2,6 +2,8 @@
 // ストーリーモード。「第◯夜」という単位でオムニバス形式の短い話を並べる。
 // デザインはJukeboxに準拠。今はダミーの読む画面のみ、第1夜だけ閲覧可能。
 
+import { fadeBgm } from './jukebox.js';
+
 var STORIES = [
   {
     id: 'night1',
@@ -41,6 +43,43 @@ var STORIES = [
 var currentStory = null;
 var currentPageIndex = 0;
 var isFlipping = false;
+
+// ================================================================
+// Storyモード中のテーマ曲（Crescendo）：強制再生＋フェードイン
+// ================================================================
+var THEME_FADE_MS = 500;
+var themeFadeRaf = null;
+
+function getStoryThemeEl() {
+  return document.getElementById('story-theme-bgm');
+}
+
+// jukebox.jsのfadeBgmと同じ考え方のシンプルなフェード（対象がstory-theme-bgmである点だけが違う）
+function fadeStoryTheme(targetVolume, durationMs) {
+  var theme = getStoryThemeEl();
+  if (!theme) return;
+  if (themeFadeRaf) cancelAnimationFrame(themeFadeRaf);
+
+  if (targetVolume > 0 && theme.paused) {
+    theme.play().catch(function () {});
+  }
+
+  var startVolume = theme.volume;
+  var startTime = performance.now();
+
+  function step(now) {
+    var t = Math.min(1, (now - startTime) / durationMs);
+    var rawVolume = startVolume + (targetVolume - startVolume) * t;
+    theme.volume = Math.max(0, Math.min(1, rawVolume));
+    if (t < 1) {
+      themeFadeRaf = requestAnimationFrame(step);
+    } else {
+      themeFadeRaf = null;
+      if (targetVolume === 0) theme.pause();
+    }
+  }
+  themeFadeRaf = requestAnimationFrame(step);
+}
 
 function renderStoryList() {
   var list = document.getElementById('story-list');
@@ -129,6 +168,16 @@ export function openStoryRead(story) {
   }
 
   renderCurrentPage();
+
+  // ★テーマ曲（Crescendo）を強制再生。既存のBGMは既存の演出と同じ流儀でダッキングし、
+  //   テーマ曲を0.5sかけてフェードインさせる
+  fadeBgm(0, THEME_FADE_MS);
+  var theme = getStoryThemeEl();
+  if (theme) {
+    theme.currentTime = 0;
+    theme.volume = 0;
+  }
+  fadeStoryTheme(0.7, THEME_FADE_MS);
 
   hideOverlay('story-list-overlay');
   showOverlay('story-read-overlay');
@@ -371,6 +420,10 @@ function flipToPage(direction) {
 }
 
 export function closeStoryRead() {
+  // テーマ曲をフェードアウトし、通常のBGMを元の音量へ戻す
+  fadeStoryTheme(0, THEME_FADE_MS);
+  fadeBgm(0.7, THEME_FADE_MS);
+
   hideOverlay('story-read-overlay');
   showOverlay('story-list-overlay');
 }
