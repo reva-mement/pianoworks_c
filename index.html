@@ -588,8 +588,10 @@
   .story-page-tap-zone-left{ left:0; }
   .story-page-tap-zone-right{ right:0; }
 
-  /* ページめくり用の◀▶ボタン。#story-read-closeと同じすりガラス調で揃えている */
+  /* ページめくり用の◀▶ボタン。#story-read-closeと同じすりガラス調で揃えている。
+     画面左右の縁に、縦方向中央で配置する（下の見えないタップ領域より手前＝z-indexを高くする） */
   .story-page-nav-btn{
+    position:absolute; top:50%; transform:translateY(-50%);
     width:34px; height:34px;
     border-radius:50%;
     display:flex; align-items:center; justify-content:center;
@@ -598,8 +600,11 @@
     border:2px solid rgba(232,150,66,0.35);
     color:#efe4cf; font-size:13px;
     cursor:pointer;
+    z-index:6;
     transition:opacity 0.2s ease;
   }
+  .story-page-nav-btn-left{ left:10px; }
+  .story-page-nav-btn-right{ right:10px; }
   .story-page-nav-btn-disabled{
     opacity:0.3;
     pointer-events:none;
@@ -756,12 +761,12 @@
         </div>
         <div id="story-page-prev-zone" class="story-page-tap-zone story-page-tap-zone-left" aria-label="前のページ"></div>
         <div id="story-page-next-zone" class="story-page-tap-zone story-page-tap-zone-right" aria-label="次のページ"></div>
+        <div id="story-page-prev-btn" class="story-page-nav-btn story-page-nav-btn-left" aria-label="前のページ">◀</div>
+        <div id="story-page-next-btn" class="story-page-nav-btn story-page-nav-btn-right" aria-label="次のページ">▶</div>
       </div>
 
-      <div style="flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:16px; padding:6px 0 4px;">
-        <div id="story-page-prev-btn" class="story-page-nav-btn" aria-label="前のページ">◀</div>
+      <div style="flex:0 0 auto; text-align:center; padding:6px 0 4px;">
         <div id="story-page-indicator" style="font-family:'Yomogi', cursive; font-size:12px; letter-spacing:1px; color:#a99f8c;">1 / 1</div>
-        <div id="story-page-next-btn" class="story-page-nav-btn" aria-label="次のページ">▶</div>
       </div>
 
       <div id="story-read-close" style="position:absolute; left:14px; bottom:14px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
