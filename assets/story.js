@@ -149,7 +149,7 @@ var DEBUG_PAUSE_TEAR_AT_PEAK = false;
 // 破れ終わって次ページ（白紙）が完全に露出してから、本来の背景色・文章へ
 // クロスフェードするまでの「白紙のまま静止する」時間と、クロスフェード自体の時間
 var WHITE_HOLD_MS = 160;
-var CROSSFADE_MS = 550;
+var CROSSFADE_MS = 1100;
 
 // 高さHの範囲を、4〜9pxのランダムな帯（歯）に分割する。
 // 各歯には、先端(tip)がどれだけ奥まで飛び出るかを決めるamplitude(px)を持たせる。
