@@ -144,9 +144,19 @@ export function getPianoCtx() {
     compressor.ratio.value = 8;
     compressor.attack.value = 0.003;
     compressor.release.value = 0.15;
+
+    // ★最終安全弁：DynamicsCompressorNodeは有限比率(8:1)のため、曲の冒頭にありがちな
+    //   「複数音が同時に重なる強い和音」などでは、attack(3ms)が効き切る前のごく短い
+    //   瞬間だけ0dBFSを超え、スマホのスピーカーで「ぽつぽつ」という音割れとして聞こえる
+    //   ことがある。compressorの後段にソフトクリップ(WaveShaper)を挟み、
+    //   万一0dBFSを超えても波形を滑らかに丸め、デジタルクリップそのものを起こさせない
+    var limiter = pianoCtx.createWaveShaper();
+    limiter.curve = createSoftClipCurve();
+    limiter.oversample = '4x'; // 高調波の折り返し(エイリアシング)も抑える
+
     masterGain = pianoCtx.createGain();
     masterGain.gain.value = 1.1; // 端末側の音量を無理に下げずに済むよう、控えめな音量にしておく
-    masterGain.connect(compressor).connect(pianoCtx.destination);
+    masterGain.connect(compressor).connect(limiter).connect(pianoCtx.destination);
 
     // ---- リバーブ(センド/リターン方式)：サンプルをそのまま鳴らすだけの単調さを、
     //      奥行きのある響きに変える。ファイルを追加しないぶん容量・読み込み時間は増えない ----
@@ -184,6 +194,28 @@ export function getPianoCtx() {
     } catch (err) { /* 暖機に失敗しても致命的ではないので無視する */ }
   }
   return pianoCtx;
+}
+
+// 通常レベルの信号(threshold未満)は完全に無加工(=そのまま)にし、threshold〜±1の
+// ごく狭い範囲だけを滑らかに丸める、しきい値付きソフトクリップカーブを生成する。
+// (tanhを全域にかけると、通常音量帯まで色付け・圧縮してしまうため、ここでは
+//  「threshold以下はf(x)=xの恒等関数」「threshold以上だけtanhで丸める」の2段構成にしている)
+function createSoftClipCurve(nSamples) {
+  nSamples = nSamples || 1024;
+  var curve = new Float32Array(nSamples);
+  var threshold = 0.9; // このレベルまでは通常再生に一切影響を与えない
+  for (var i = 0; i < nSamples; i++) {
+    var x = (i * 2) / (nSamples - 1) - 1; // -1 〜 1
+    var ax = Math.abs(x);
+    if (ax <= threshold) {
+      curve[i] = x;
+    } else {
+      var sign = x < 0 ? -1 : 1;
+      var over = (ax - threshold) / (1 - threshold);
+      curve[i] = sign * (threshold + (1 - threshold) * Math.tanh(over));
+    }
+  }
+  return curve;
 }
 
 // quality省略時は、現在アクティブな音質(なければ保存済み設定 > 'normal')を読み込む。
