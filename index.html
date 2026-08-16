@@ -562,9 +562,11 @@
   .story-tear-back, .story-tear-front{
     overflow-y:auto;
     padding:24px 22px;
-    background:#131009;
   }
   .story-tear-back{
+    /* ★破れて露出した直後は白紙の状態から始め、その後JS側で本来の背景色・文章へ
+       クロスフェードする（story.js の flipToPage 参照） */
+    background:#efe9dc;
     visibility:hidden;
     z-index:1;
   }
@@ -575,6 +577,7 @@
     pointer-events:none;
   }
   .story-tear-front{
+    background:#131009;
     z-index:3;
   }
   /* 左右の見えないタップ領域。左＝前のページ、右＝次のページ（本を読む時の自然な操作感に合わせる） */
