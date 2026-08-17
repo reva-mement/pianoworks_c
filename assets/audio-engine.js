@@ -184,12 +184,15 @@ export function getPianoCtx() {
 
     // AudioContextを作った直後、一番最初に鳴らす音が「ぶつっ」と鳴ることがある
     // (音声パイプラインがまだ準備できていないことによるノイズ)。ごく短い無音を
-    // 一度鳴らしておくことで、パイプラインを暖機し、実際の1音目でのノイズを防ぐ
+    // 一度鳴らしておくことで、パイプラインを暖機し、実際の1音目でのノイズを防ぐ。
+    // ★以前はpianoCtx.destinationに直結していたが、それだとcompressor/limiterを
+    //   経由しないため、万一この暖機自体がノイズを出した場合に安全弁が効かなかった。
+    //   masterGain経由にして、他の音と同じ保護された経路を必ず通すようにする
     try {
       var primerBuffer = pianoCtx.createBuffer(1, 1, pianoCtx.sampleRate);
       var primerSrc = pianoCtx.createBufferSource();
       primerSrc.buffer = primerBuffer;
-      primerSrc.connect(pianoCtx.destination);
+      primerSrc.connect(masterGain);
       primerSrc.start(0);
     } catch (err) { /* 暖機に失敗しても致命的ではないので無視する */ }
   }
