@@ -1079,45 +1079,14 @@
   function goToHome(){
     if(started) return;
     started = true;
-    bgm.volume = 0.7;
+    // ★opening-bgm.mp3は、再生開始から20msほどでほぼフルボリュームまで急上昇する
+    //   (フェードインなしの強いアタックで始まる)波形になっており、これがそのまま
+    //   「ぷつっ」というポップ音として聞こえる可能性が高いことが波形解析でわかった。
+    //   volume:0からfadeBgmで滑らかに立ち上げることで、この急上昇そのものをなくす
+    bgm.volume = 0;
     bgm.currentTime = 0;
     bgm.play().catch(()=>{});
-
-    // Jukebox初回起動時に鳴っていた「ぶつっ」というノイズは、ピアノ用の音声の仕組みを
-    // 初めて起動する瞬間に出るもの。タップ操作というユーザー操作のタイミングで前もって
-    // 済ませておくことで、実際にJukeboxを開いた時には既に準備が終わった状態にする
-    try {
-      var ctx = getPianoCtx();
-      if (ctx.state === 'suspended') ctx.resume();
-
-      // 前回「通常」以外(高音質・超高音質等)を選んでいた場合、Web版では回線状況によって
-      // ダウンロードに時間がかかることがあるため、無言で自動ダウンロードせず、予想サイズ・時間を
-      // 明記した上でユーザーに選び直してもらう(情報を持った上で選択できるように)
-      var savedQuality = getAudioQuality();
-      if (savedQuality !== 'normal') {
-        var qualityLabel = (getAvailableQualities().filter(function (o) { return o.id === savedQuality; })[0] || {}).label || savedQuality;
-        var est = estimateQualityDownload(savedQuality);
-        var timeLabel = est.estimatedSeconds >= 60
-          ? Math.ceil(est.estimatedSeconds / 60) + '分程度'
-          : est.estimatedSeconds + '秒程度';
-        window.showCustomConfirm(
-          '前回「' + qualityLabel + '」が選択されています。\n' +
-          qualityLabel + 'の音源（約' + est.sizeMB + 'MB、目安' + timeLabel + '）を今回もダウンロードしますか？\n' +
-          '「いいえ」を選ぶと、通常音質で開始します。'
-        ).then(function (keep) {
-          if (!keep) { setAudioQuality('normal').catch(function (err) { console.warn(err); }); return; }
-          showQualityLoadingBar(qualityLabel + 'を読み込み中…');
-          setAudioQuality(savedQuality, updateQualityLoadingBar).then(function () {
-            hideQualityLoadingBar();
-          }).catch(function (err) {
-            hideQualityLoadingBar();
-            console.warn(err);
-          });
-        });
-      } else {
-        loadPianoSamples(); // Jukeboxを開く前に、バックグラウンドで先に読み込みを済ませておく
-      }
-    } catch (err) { /* 失敗しても致命的ではないので無視 */ }
+    fadeBgm(0.7, 400);
 
     sceneTitle.classList.add('hidden');
     sceneTitle.addEventListener('transitionend', function onEnd(e){
@@ -1125,6 +1094,63 @@
       sceneTitle.removeEventListener('transitionend', onEnd);
       sceneHome.classList.remove('hidden');
     });
+
+    // ★BGM(<audio>要素)とピアノ用AudioContextを同じタイミングで同時に起動すると、
+    //   端末によっては音声出力ルートが2つ同時に開くことになり、スピーカーの
+    //   ハードウェア側のポップノイズが重なって目立ちやすくなることがある。
+    //   「高音質読み込み中」と同じ準備中ウインドウを一瞬だけ出し、その間にBGM開始から
+    //   一呼吸置いてからピアノ側を起動する(見えない待ち時間より、準備中と分かる方が自然)
+    showQualityLoadingBar('準備中…');
+    setTimeout(function () {
+      // Jukebox初回起動時に鳴っていた「ぶつっ」というノイズは、ピアノ用の音声の仕組みを
+      // 初めて起動する瞬間に出るもの。タップ操作というユーザー操作のタイミングで前もって
+      // 済ませておくことで、実際にJukeboxを開いた時には既に準備が終わった状態にする
+      try {
+        var ctx = getPianoCtx();
+        if (ctx.state === 'suspended') ctx.resume();
+
+        // 前回「通常」以外(高音質・超高音質等)を選んでいた場合、Web版では回線状況によって
+        // ダウンロードに時間がかかることがあるため、無言で自動ダウンロードせず、予想サイズ・時間を
+        // 明記した上でユーザーに選び直してもらう(情報を持った上で選択できるように)
+        var savedQuality = getAudioQuality();
+        if (savedQuality !== 'normal') {
+          // 確認ダイアログを出す流れに入るので、いったん「準備中」表示は閉じる
+          // (ダウンロードする場合は、この後すぐ専用のラベルで改めて表示し直される)
+          hideQualityLoadingBar();
+          var qualityLabel = (getAvailableQualities().filter(function (o) { return o.id === savedQuality; })[0] || {}).label || savedQuality;
+          var est = estimateQualityDownload(savedQuality);
+          var timeLabel = est.estimatedSeconds >= 60
+            ? Math.ceil(est.estimatedSeconds / 60) + '分程度'
+            : est.estimatedSeconds + '秒程度';
+          window.showCustomConfirm(
+            '前回「' + qualityLabel + '」が選択されています。\n' +
+            qualityLabel + 'の音源（約' + est.sizeMB + 'MB、目安' + timeLabel + '）を今回もダウンロードしますか？\n' +
+            '「いいえ」を選ぶと、通常音質で開始します。'
+          ).then(function (keep) {
+            if (!keep) { setAudioQuality('normal').catch(function (err) { console.warn(err); }); return; }
+            showQualityLoadingBar(qualityLabel + 'を読み込み中…');
+            setAudioQuality(savedQuality, updateQualityLoadingBar).then(function () {
+              hideQualityLoadingBar();
+            }).catch(function (err) {
+              hideQualityLoadingBar();
+              console.warn(err);
+            });
+          });
+        } else {
+          // Jukeboxを開く前に、バックグラウンドで先に読み込みを済ませておく。
+          // 進捗を「準備中」バーにそのまま反映し、終わったら閉じる
+          loadPianoSamples('normal', updateQualityLoadingBar).then(function () {
+            hideQualityLoadingBar();
+          }).catch(function (err) {
+            hideQualityLoadingBar();
+            console.warn(err);
+          });
+        }
+      } catch (err) {
+        // 失敗しても致命的ではないので無視するが、出しっぱなしの「準備中」表示は閉じる
+        hideQualityLoadingBar();
+      }
+    }, 120);
   }
 
   // 設定画面の「タイトルに戻る」用。goToHomeの逆再生で、フェードアウト→フェードインさせる
