@@ -769,7 +769,7 @@
         <div id="story-page-indicator" style="font-family:'Yomogi', cursive; font-size:12px; letter-spacing:1px; color:#a99f8c;">1 / 1</div>
       </div>
 
-      <div id="story-read-close" style="position:absolute; right:14px; bottom:14px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
+      <div id="story-read-close" style="position:absolute; right:14px; bottom:calc(14px + env(safe-area-inset-bottom)); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
     </div>
   </div>
 
@@ -804,7 +804,7 @@
 
   <!-- 高音質読み込み中に画面中央へ表示する進捗バー。Jukeboxのシークバーと同じ配色・角丸で揃えている。
        表示中はpointer-eventsで画面全体のタップを吸収し、操作を無効化する -->
-  <div id="audio-quality-loading-overlay" style="position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); pointer-events:none;">
+  <div id="audio-quality-loading-overlay" style="position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); pointer-events:none; opacity:0; transition:opacity 0.35s ease-out;">
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 26px; border-radius:14px; background:rgba(10,9,7,0.78); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid rgba(232,150,66,0.4); box-shadow:0 10px 28px rgba(0,0,0,0.4);">
       <div id="audio-quality-loading-label" style="font-family:'Yomogi', cursive; font-size:13px; color:#f3ede0; letter-spacing:0.5px;">高音質を読み込み中…</div>
       <div style="width:200px; height:6px; border-radius:3px; background:rgba(169,164,150,0.25); position:relative;">
@@ -996,6 +996,9 @@
     qualityLoadingPercent.textContent = '0%';
     qualityLoadingOverlay.style.display = 'flex';
     qualityLoadingOverlay.style.pointerEvents = 'auto'; // 表示中は画面全体のタップを吸収し、操作を無効化する
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { qualityLoadingOverlay.style.opacity = '1'; });
+    });
   }
   function updateQualityLoadingBar(loaded, total) {
     var pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
@@ -1003,8 +1006,11 @@
     qualityLoadingPercent.textContent = pct + '%';
   }
   function hideQualityLoadingBar() {
-    qualityLoadingOverlay.style.display = 'none';
     qualityLoadingOverlay.style.pointerEvents = 'none';
+    qualityLoadingOverlay.style.opacity = '0';
+    setTimeout(function () {
+      qualityLoadingOverlay.style.display = 'none';
+    }, 350); // opacityのtransition(0.35s)が終わってからdisplay:noneにする
   }
 
   function selectAudioQuality(quality) {
