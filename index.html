@@ -769,7 +769,7 @@
         <div id="story-page-indicator" style="font-family:'Yomogi', cursive; font-size:12px; letter-spacing:1px; color:#a99f8c;">1 / 1</div>
       </div>
 
-      <div id="story-read-close" style="position:absolute; right:14px; bottom:calc(14px + env(safe-area-inset-bottom)); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
+      <div id="story-read-close" style="position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(211,211,211,0.1); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:2px solid rgba(232,150,66,0.35); z-index:15; cursor:pointer; color:#efe4cf; font-size:20px;">×</div>
     </div>
   </div>
 
@@ -1140,8 +1140,15 @@
     });
   }
 
+  // ★touchendとclickの両方にgoToHomeを束ねていると、1回のタップでもモバイルでは
+  //   touchend→(合成)clickの順に2回発火することがある。goToHome自体はstartedガードで
+  //   二重実行は防いでいるが、タップ連打時に無駄なイベント処理が積み重なるのを避けるため、
+  //   touchend側でpreventDefaultして、後から発火する合成clickを起こさせないようにする
+  stage.addEventListener('touchend', function (e) {
+    e.preventDefault();
+    goToHome();
+  }, { passive: false });
   stage.addEventListener('click', goToHome);
-  stage.addEventListener('touchend', goToHome);
 
   // ★ バックグラウンド再生に対応するため、以前あった「非表示になったら一時停止する」処理は撤去。
   //   代わりにMedia Session APIでOSのメディアコントロール(ロック画面の再生バー等)に対応させておくと、
