@@ -327,8 +327,11 @@ function flipToPage(direction) {
     return;
   }
 
-  var W = viewport.clientWidth;
-  var H = viewport.clientHeight;
+  // ★clientWidth/clientHeightだと、端末のDPRやレイアウトの端数によっては歯の形の
+  //   計算がわずかにずれることがあるため、getBoundingClientRectを整数に丸めて使う
+  var rect = viewport.getBoundingClientRect();
+  var W = Math.round(rect.width);
+  var H = Math.round(rect.height);
   if (W <= 0 || H <= 0) {
     currentPageIndex = targetIndex;
     renderCurrentPage();
@@ -424,8 +427,11 @@ export function closeStoryRead() {
   fadeStoryTheme(0, THEME_FADE_MS);
   fadeBgm(0.7, THEME_FADE_MS);
 
+  // ★一覧画面を経由せず、読了画面からメイン画面へ直接フェードアウトで戻る
+  //   （story-list-overlayはread-overlayの下で表示されたままになっているので、
+  //   両方を同時にhideOverlayすることで、どちらもフェードしながらメイン画面が現れる）
   hideOverlay('story-read-overlay');
-  showOverlay('story-list-overlay');
+  hideOverlay('story-list-overlay');
 }
 
 export function initStory() {
