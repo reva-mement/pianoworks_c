@@ -3,6 +3,7 @@
 // デザインはJukeboxに準拠。今はダミーの読む画面のみ、第1夜だけ閲覧可能。
 
 import { fadeBgm } from './jukebox.js';
+import { getPianoCtx } from './audio-engine.js';
 
 var STORIES = [
   {
@@ -231,6 +232,51 @@ var WHITE_HOLD_MS = 160;   // 白紙のまま静止する時間
 var TEXT_POP_MS = 220;     // 白紙の上にテキストがすっと表示されるまでの時間
 var CROSSFADE_MS = 750;    // テキスト表示後、背景が白から本来の色へフェードインする時間
 
+// ================================================================
+// ページをめくる音（SE）：音声ファイルを追加せず、ホワイトノイズをフィルターで
+// 「紙」らしい質感に加工して合成する。ピアノと同じAudioContextを共有する。
+// ================================================================
+function playPageTurnSE(direction) {
+  try {
+    var ctx = getPianoCtx();
+    var duration = 0.22;
+    var bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1; // ホワイトノイズ
+    }
+
+    var noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = buffer;
+
+    // バンドパスで帯域を絞り、「シャッ」という紙らしい質感にする。
+    // 次のページへ(direction=1)は周波数を上向きに、前のページへ(-1)は下向きに掃引し、
+    // めくる方向に合わせた「しゅっ」という向きの手触りをつける
+    var bandpass = ctx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.Q.value = 0.9;
+    var now = ctx.currentTime;
+    var freqFrom = direction >= 0 ? 1800 : 4200;
+    var freqTo = direction >= 0 ? 4200 : 1800;
+    bandpass.frequency.setValueAtTime(freqFrom, now);
+    bandpass.frequency.linearRampToValueAtTime(freqTo, now + duration * 0.8);
+
+    var highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 700;
+
+    var gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.32, now + 0.02); // 素早く立ち上がる
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration); // 滑らかに減衰
+
+    noiseSrc.connect(bandpass).connect(highpass).connect(gainNode).connect(ctx.destination);
+    noiseSrc.start(now);
+    noiseSrc.stop(now + duration + 0.02);
+  } catch (err) { /* SE再生に失敗しても致命的ではないので無視する */ }
+}
+
 // 高さHの範囲を、4〜9pxのランダムな帯（歯）に分割する。
 // 各歯には、先端(tip)がどれだけ奥まで飛び出るかを決めるamplitude(px)を持たせる。
 function generateTeeth(H, W) {
@@ -347,6 +393,7 @@ function flipToPage(direction) {
   }
 
   isFlipping = true;
+  playPageTurnSE(direction);
 
   // 破れていく先（back）には、次に見せるページの文章を先に入れておく。
   // ★frontEl（今見えている面）のテキストはまだ書き換えない――アニメーションが
