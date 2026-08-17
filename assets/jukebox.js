@@ -110,7 +110,7 @@ var els = {}; // DOM要素はinitJukebox()で解決する
 
 var BONUS_TRACK = {
   isBonus: true,
-  name: 'Crescendo（特典曲）',
+  name: 'Crescendo',
   audioUrl: 'assets/bonus-theme-full.mp3',
   durationMs: 0 // 実ファイルのメタデータ取得後に更新
 };
