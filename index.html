@@ -1279,6 +1279,13 @@
     var MIN_DIST = 18; // これ以上動いたら次の波紋を出す
 
     function onPointerDown(e){
+      // ★タイトル画面のタップから、実際にホーム画面へ完全に切り替わるまでの間（BGM起動直後の
+      //   一番デリケートな区間）は、なぞり波紋を出さない。連打時に指が少し動くと「ドラッグ」と
+      //   誤認識され、波紋のDOM生成＋CSSアニメーションが連続発生することがあり、その描画負荷で
+      //   BGM再生が詰まって「ぷつっ」と聞こえる一因になっていた可能性があるため。
+      //   sceneTitleのhidden付与だけでなく、sceneHomeが実際に現れるまでを見る
+      //   （両者の間、約0.9秒の遷移中もガード対象に含めるため）
+      if (sceneHome && sceneHome.classList.contains('hidden')) return;
       if (e.target.closest && e.target.closest('.aqbtn')) return; // ボタン上は対象外
       if (e.target.closest && (e.target.closest('#jukebox-overlay') || e.target.closest('#skin-overlay') || e.target.closest('#settings-overlay') || e.target.closest('#studio-list-overlay'))) return; // Jukebox内は対象外
       if (e.target.closest && e.target.closest('#btn-settings')) return; // 設定ボタン上は対象外
