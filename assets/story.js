@@ -258,9 +258,17 @@ function mx(x, W, mirror) {
 // tipExtraRatio: 0なら谷と同じ（ギザギザなし）。1に近いほど、歯の中間地点だけ
 //                amplitudeぶん「破れていく側」へ突き出る（★歯の向きを反転：以前は逆側=まだ
 //                見えている側へ飛び出ていたが、破れる方向へ尖るように変更）
+// ★座標は px ではなく、その要素自身のサイズに対する % で出力する。pxだと「測定した瞬間の
+//   画面サイズ」に焼き付けられてしまい、モバイルでアドレスバーの出現/収納などにより
+//   実際の表示領域が変わった時にズレて見えることがあったため（%なら常にその時点の
+//   実サイズに対して正しい位置になる）
 function buildPolygon(teeth, notchBaseX, tipExtraRatio, W, H, mirror) {
   var pts = [];
-  function pt(x, y) { pts.push(mx(x, W, mirror) + 'px ' + y + 'px'); }
+  function pt(x, y) {
+    var xPct = (mx(x, W, mirror) / W) * 100;
+    var yPct = (y / H) * 100;
+    pts.push(xPct + '% ' + yPct + '%');
+  }
   pt(0, 0);
   teeth.forEach(function (t) {
     var tipX = notchBaseX - t.amplitude * tipExtraRatio;
