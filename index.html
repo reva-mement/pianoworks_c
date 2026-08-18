@@ -1169,6 +1169,16 @@
   // 示しながら一つずつ説明する。一度見たらlocalStorageに記録し、以降は出さない。
   // ================================================================
   var TUTORIAL_STORAGE_KEY = 'pw_seen_tutorial';
+  // ★デバッグ用フラグ：trueにすると、既に見た記録(localStorage)を無視して、
+  // 毎回必ず初回チュートリアルが出るようになる。
+  // 既存の?debugAutoJust=1（studio.jsのデバッグ用パラメータ）が付いている時にも
+  // 有効化する（新しく別のパラメータを増やさず、既存のデバッグURLに相乗りする）
+  var DEBUG_ALWAYS_SHOW_TUTORIAL = false;
+  try {
+    if (new URLSearchParams(window.location.search).get('debugAutoJust') === '1') {
+      DEBUG_ALWAYS_SHOW_TUTORIAL = true;
+    }
+  } catch (e) { /* URLSearchParams非対応環境は無視 */ }
   var TUTORIAL_STEPS = [
     {
       target: '#btn-import',
@@ -1198,7 +1208,7 @@
   var tutorialStepIndex = 0;
 
   function startFirstVisitTutorial() {
-    if (localStorage.getItem(TUTORIAL_STORAGE_KEY)) return;
+    if (!DEBUG_ALWAYS_SHOW_TUTORIAL && localStorage.getItem(TUTORIAL_STORAGE_KEY)) return;
     // ★「準備中」の読み込みウインドウがまだ出ている間は、チュートリアルを開始しない。
     //   読み込みが終わって完全に消えるまで待ってから始める
     var loadingOverlay = document.getElementById('audio-quality-loading-overlay');
