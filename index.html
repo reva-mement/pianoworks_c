@@ -771,6 +771,7 @@
           <div id="settings-audio-quality-group" style="display:flex; gap:6px; margin-top:8px;"></div>
         </div>
         <div id="settings-back-to-title" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">タイトルに戻る</div>
+        <div id="settings-show-tutorial" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">チュートリアルを見る</div>
         <div id="settings-quit-app" style="display:flex; align-items:center; padding:14px 2px; border-bottom:1px solid rgba(232,150,66,0.4); font-family:'Yomogi', cursive; font-size:14px; color:#f3ede0; letter-spacing:0.5px; cursor:pointer;">アプリを終了</div>
       </div>
     </div>
@@ -1138,6 +1139,12 @@
     closeSettings();
     goToTitle();
   });
+  document.getElementById('settings-show-tutorial').addEventListener('click', function(e){
+    e.stopPropagation();
+    closeSettings();
+    // 設定画面から見返す場合は、既読フラグや読み込み待ちを気にせず、すぐに1ページ目から出す
+    setTimeout(revealFirstVisitTutorial, 900);
+  });
   document.getElementById('settings-quit-app').addEventListener('click', function(e){
     e.stopPropagation();
     window.close();
@@ -1209,6 +1216,12 @@
       shape: 'circle',
       title: 'Story',
       desc: '「第◯夜」という短いお話を読めます。ページをめくるように読み進める、ちょっとした物語のモードです。'
+    },
+    {
+      target: '#btn-settings',
+      shape: 'circle',
+      title: '設定',
+      desc: '音質の切り替えなど、アプリ全体の設定はここから行えます。このチュートリアルも、設定画面からいつでも見返すことができます。'
     }
   ];
   var tutorialStepIndex = 0;
@@ -1226,6 +1239,11 @@
       setTimeout(startFirstVisitTutorial, 300);
       return;
     }
+    // ★読み込みが終わった瞬間にすぐ出すと慌ただしいので、1秒ほど間を置いてから開始する
+    setTimeout(revealFirstVisitTutorial, 1000);
+  }
+
+  function revealFirstVisitTutorial() {
     var overlay = document.getElementById('tutorial-overlay');
     if (!overlay) return;
     tutorialStepIndex = 0;
