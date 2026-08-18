@@ -617,6 +617,7 @@
   #tutorial-overlay{
     position:fixed; inset:0; z-index:500;
     display:none;
+    align-items:center; justify-content:center;
     pointer-events:auto;
   }
   #tutorial-spotlight{
@@ -628,7 +629,7 @@
     pointer-events:none;
   }
   #tutorial-caption{
-    position:absolute;
+    position:relative;
     width:260px;
     box-sizing:border-box;
     padding:18px 20px;
@@ -637,7 +638,6 @@
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     border:1px solid rgba(232,150,66,0.4);
     box-shadow:0 10px 28px rgba(0,0,0,0.4);
-    transition:top 0.4s ease, left 0.4s ease;
   }
   #tutorial-caption .tutorial-step-label{
     font-family:'Yomogi', cursive;
@@ -1209,17 +1209,21 @@
 
   function startFirstVisitTutorial() {
     if (!DEBUG_ALWAYS_SHOW_TUTORIAL && localStorage.getItem(TUTORIAL_STORAGE_KEY)) return;
-    // ★「準備中」の読み込みウインドウがまだ出ている間は、チュートリアルを開始しない。
-    //   読み込みが終わって完全に消えるまで待ってから始める
+    // ★「準備中」の読み込みウインドウや、「前回『高音質』が選択されています」等の
+    //   確認ダイアログがまだ出ている間は、チュートリアルを開始しない。
+    //   両方とも完全に消えるまで待ってから始める
     var loadingOverlay = document.getElementById('audio-quality-loading-overlay');
-    if (loadingOverlay && getComputedStyle(loadingOverlay).display !== 'none') {
+    var confirmOverlay = document.getElementById('custom-alert-overlay');
+    var loadingVisible = loadingOverlay && getComputedStyle(loadingOverlay).display !== 'none';
+    var confirmVisible = confirmOverlay && getComputedStyle(confirmOverlay).display !== 'none';
+    if (loadingVisible || confirmVisible) {
       setTimeout(startFirstVisitTutorial, 300);
       return;
     }
     var overlay = document.getElementById('tutorial-overlay');
     if (!overlay) return;
     tutorialStepIndex = 0;
-    overlay.style.display = 'block';
+    overlay.style.display = 'flex';
     showTutorialStep(0);
   }
 
@@ -1228,12 +1232,18 @@
     var targetEl = document.querySelector(step.target);
     var spotlight = document.getElementById('tutorial-spotlight');
     var caption = document.getElementById('tutorial-caption');
-    if (!targetEl || !spotlight || !caption) { finishTutorial(); return; }
+    var stageEl = document.getElementById('stage');
+    if (!targetEl || !spotlight || !caption || !stageEl) { finishTutorial(); return; }
 
+    // ★.stageにはperspectiveが指定されており、これがposition:fixed要素の基準を
+    //   「ブラウザ全体」ではなく「.stage自身」に変えてしまう(CSSの仕様上の挙動)。
+    //   getBoundingClientRect()はブラウザ全体基準の値を返すため、そのまま使うと
+    //   .stageぶん（PCの横広い画面だと400px前後）二重にズレる。差し引いて補正する。
+    var stageRect = stageEl.getBoundingClientRect();
     var rect = targetEl.getBoundingClientRect();
     var pad = 8;
-    spotlight.style.left = (rect.left - pad) + 'px';
-    spotlight.style.top = (rect.top - pad) + 'px';
+    spotlight.style.left = (rect.left - stageRect.left - pad) + 'px';
+    spotlight.style.top = (rect.top - stageRect.top - pad) + 'px';
     spotlight.style.width = (rect.width + pad * 2) + 'px';
     spotlight.style.height = (rect.height + pad * 2) + 'px';
     spotlight.style.borderRadius = step.shape === 'circle' ? '50%' : '14px';
@@ -1242,20 +1252,6 @@
     document.getElementById('tutorial-title').textContent = step.title;
     document.getElementById('tutorial-desc').textContent = step.desc;
     document.getElementById('tutorial-next').textContent = (i === TUTORIAL_STEPS.length - 1) ? 'はじめる' : '次へ';
-
-    // 説明カードは対象ボタンと重ならない側（画面の縦位置で上下どちらが空いているか）に出す
-    var captionWidth = 260;
-    var spaceBelow = window.innerHeight - rect.bottom;
-    var captionTop = (spaceBelow > 220) ? (rect.bottom + 16) : (rect.top - 16);
-    var captionLeft = Math.min(Math.max(rect.left + rect.width / 2 - captionWidth / 2, 16), window.innerWidth - captionWidth - 16);
-    caption.style.left = captionLeft + 'px';
-    if (spaceBelow > 220) {
-      caption.style.top = captionTop + 'px';
-      caption.style.bottom = 'auto';
-    } else {
-      caption.style.top = 'auto';
-      caption.style.bottom = (window.innerHeight - rect.top + 16) + 'px';
-    }
   }
 
   function finishTutorial() {
