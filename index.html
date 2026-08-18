@@ -619,6 +619,8 @@
     display:none;
     align-items:center; justify-content:center;
     pointer-events:auto;
+    opacity:0;
+    transition:opacity 0.35s ease;
   }
   #tutorial-spotlight{
     position:absolute;
@@ -631,6 +633,7 @@
   #tutorial-caption{
     position:relative;
     width:260px;
+    height:228px;
     box-sizing:border-box;
     padding:18px 20px;
     border-radius:14px;
@@ -638,6 +641,8 @@
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     border:1px solid rgba(232,150,66,0.4);
     box-shadow:0 10px 28px rgba(0,0,0,0.4);
+    display:flex;
+    flex-direction:column;
   }
   #tutorial-caption .tutorial-step-label{
     font-family:'Yomogi', cursive;
@@ -661,7 +666,8 @@
   }
   #tutorial-caption .tutorial-controls{
     display:flex; align-items:center; justify-content:space-between;
-    margin-top:14px;
+    margin-top:auto;
+    padding-top:14px;
   }
   #tutorial-skip{
     font-family:'Yomogi', cursive;
@@ -1225,6 +1231,9 @@
     tutorialStepIndex = 0;
     overlay.style.display = 'flex';
     showTutorialStep(0);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { overlay.style.opacity = '1'; });
+    });
   }
 
   function showTutorialStep(i) {
@@ -1256,7 +1265,10 @@
 
   function finishTutorial() {
     var overlay = document.getElementById('tutorial-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (overlay) {
+      overlay.style.opacity = '0';
+      setTimeout(function () { overlay.style.display = 'none'; }, 350);
+    }
     localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
   }
 
