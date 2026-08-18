@@ -1039,6 +1039,7 @@
   function openSettings(){
     var el = document.getElementById('settings-overlay');
     el.style.display = 'flex';
+    el.style.pointerEvents = 'auto';
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { el.style.opacity = '1'; });
     });
@@ -1047,6 +1048,10 @@
   function closeSettings(){
     var el = document.getElementById('settings-overlay');
     el.style.opacity = '0';
+    // ★opacity:0でフェードアウトしている間も、pointer-eventsを切らないと見えないまま
+    //   タップを奪ってしまう(設定→チュートリアルを見る、で不具合の原因になっていた)。
+    //   見た目のフェードとは別に、操作の受付だけは即座に止める
+    el.style.pointerEvents = 'none';
     setTimeout(function () { el.style.display = 'none'; }, 900);
   }
   document.getElementById('settings-close').addEventListener('click', function(e){
@@ -1142,9 +1147,20 @@
   document.getElementById('settings-show-tutorial').addEventListener('click', function(e){
     e.stopPropagation();
     closeSettings();
-    // 設定画面から見返す場合は、既読フラグや読み込み待ちを気にせず、すぐに1ページ目から出す
-    setTimeout(revealFirstVisitTutorial, 900);
+    // ★設定画面が完全に閉じ終わる(display:noneになる)まで待ってから開始する。
+    //   決め打ちの待ち時間だと、閉じきる前にチュートリアルと重なり、見えない設定画面が
+    //   タップを奪って操作不能になることがあったため、確実に閉じたことを確認してから出す
+    waitForSettingsClosedThenShowTutorial();
   });
+  function waitForSettingsClosedThenShowTutorial() {
+    var settingsEl = document.getElementById('settings-overlay');
+    if (settingsEl && getComputedStyle(settingsEl).display !== 'none') {
+      setTimeout(waitForSettingsClosedThenShowTutorial, 100);
+      return;
+    }
+    // 既読フラグは気にせず、すぐに1ページ目から出す
+    revealFirstVisitTutorial();
+  }
   document.getElementById('settings-quit-app').addEventListener('click', function(e){
     e.stopPropagation();
     window.close();
@@ -1399,8 +1415,15 @@
   // ★touchendとclickの両方にgoToHomeを束ねていると、1回のタップでもモバイルでは
   //   touchend→(合成)clickの順に2回発火することがある。goToHome自体はstartedガードで
   //   二重実行は防いでいるが、タップ連打時に無駄なイベント処理が積み重なるのを避けるため、
-  //   touchend側でpreventDefaultして、後から発火する合成clickを起こさせないようにする
+  //   touchend側でpreventDefaultして、後から発火する合成clickを起こさせないようにしていた。
+  // ★重大なバグ：touchendはバブリングするため、この処理がstage全体（アプリ内のほぼ全てのボタン）
+  //   に効いてしまい、タイトル画面を通過した後も、あらゆるタップでブラウザ標準のclick合成が
+  //   握りつぶされ続け、実機（タッチ操作）ではclickイベントに頼っている全てのボタンが
+  //   一切反応しなくなっていた（チュートリアルのボタン含む）。マウスのclick()はこの経路を
+  //   通らないため、これまでのテストでは発覚しなかった。
+  //   startedがtrueになった後（＝タイトル画面を通過した後）は、このハンドラ自体を無効化する
   stage.addEventListener('touchend', function (e) {
+    if (started) return;
     e.preventDefault();
     goToHome();
   }, { passive: false });
