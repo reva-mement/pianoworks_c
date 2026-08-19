@@ -480,6 +480,45 @@
     25%{transform:translate(-50%,-6px) scale(1.15); opacity:1;}
     100%{transform:translate(-50%,-26px) scale(1); opacity:0;}
   }
+  /* ---- コンボ数ポップアップ：10コンボを超えると、ノーツを消した場所(下辺の10px上)に
+       現在のコンボ数を表示する。10コンボごとに色が変わり、100を超えると虹色になる ---- */
+  #scene-studio-play .studio-combo-popup{
+    position:absolute;
+    font-family:'Yomogi', cursive;
+    font-size:13px;
+    font-weight:bold;
+    white-space:nowrap;
+    pointer-events:none;
+    z-index:12;
+    animation:studioComboPopup 0.6s ease-out forwards;
+  }
+  @keyframes studioComboPopup{
+    0%{transform:translate(-50%,0) scale(0.7); opacity:0;}
+    25%{transform:translate(-50%,-4px) scale(1.1); opacity:1;}
+    100%{transform:translate(-50%,-20px) scale(1); opacity:0;}
+  }
+  #scene-studio-play .studio-combo-popup-tier-1{ color:#ffe27a; text-shadow:0 0 6px rgba(255,226,122,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-2{ color:#ffb15c; text-shadow:0 0 6px rgba(255,177,92,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-3{ color:#ff8a7a; text-shadow:0 0 6px rgba(255,138,122,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-4{ color:#ff6fa8; text-shadow:0 0 6px rgba(255,111,168,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-5{ color:#d888ff; text-shadow:0 0 6px rgba(216,136,255,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-6{ color:#9a9bff; text-shadow:0 0 6px rgba(154,155,255,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-7{ color:#6fc6ff; text-shadow:0 0 6px rgba(111,198,255,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-8{ color:#6fe8d0; text-shadow:0 0 6px rgba(111,232,208,0.8); }
+  #scene-studio-play .studio-combo-popup-tier-9{ color:#8bffa0; text-shadow:0 0 6px rgba(139,255,160,0.8); }
+  #scene-studio-play .studio-combo-popup-rainbow{
+    background-image:linear-gradient(90deg, #ff5c5c, #ffb15c, #fff56f, #7dff6f, #6fd0ff, #7a8bff, #d879ff, #ff5c5c);
+    background-size:400% 100%;
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    text-shadow:none;
+    animation:studioComboPopup 0.6s ease-out forwards, studioComboRainbow 1.2s linear infinite;
+  }
+  @keyframes studioComboRainbow{
+    0%{background-position:0% 50%;}
+    100%{background-position:400% 50%;}
+  }
   #scene-studio-play .studio-score-panel{
     flex:1;
     display:flex;
