@@ -1283,7 +1283,9 @@
   var tutorialStepIndex = 0;
 
   function startFirstVisitTutorial() {
-    if (!DEBUG_ALWAYS_SHOW_TUTORIAL && localStorage.getItem(TUTORIAL_STORAGE_KEY)) return;
+    var alreadySeen = false;
+    try { alreadySeen = !!localStorage.getItem(TUTORIAL_STORAGE_KEY); } catch (err) { /* 読めなくても致命的ではないので無視 */ }
+    if (!DEBUG_ALWAYS_SHOW_TUTORIAL && alreadySeen) return;
     // ★「準備中」の読み込みウインドウや、「前回『高音質』が選択されています」等の
     //   確認ダイアログがまだ出ている間は、チュートリアルを開始しない。
     //   両方とも完全に消えるまで待ってから始める
@@ -1302,6 +1304,11 @@
   function revealFirstVisitTutorial() {
     var overlay = document.getElementById('tutorial-overlay');
     if (!overlay) return;
+    // ★「見終わった時」だけに既読フラグを保存していると、万一チュートリアル表示中に
+    //   何らかの理由で操作できなくなったり、途中でアプリを閉じたりした場合、
+    //   フラグが一度も保存されず、次回以降もずっと表示され続けてしまう。
+    //   「表示された時点」で保存しておくことで、そうした場合でも次回以降は出さないようにする
+    try { localStorage.setItem(TUTORIAL_STORAGE_KEY, '1'); } catch (err) { /* 保存できなくても致命的ではないので無視 */ }
     tutorialStepIndex = 0;
     overlay.style.display = 'flex';
     showTutorialStep(0);
