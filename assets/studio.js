@@ -515,6 +515,7 @@ function popNote(note, area, record, judgment, opts) {
   var areaRect = area.getBoundingClientRect();
   var cx = rect.left - areaRect.left + rect.width / 2;
   var cy = rect.top - areaRect.top + rect.height / 2;
+  var bottomY = rect.bottom - areaRect.top; // ノーツの下辺（縦長のノーツでも、これが「消えた場所」の基準になる）
 
   if (judgment === 'just') {
     var popup = document.createElement('div');
@@ -524,6 +525,23 @@ function popNote(note, area, record, judgment, opts) {
     popup.style.top = cy + 'px';
     area.appendChild(popup);
     popup.addEventListener('animationend', function () { popup.remove(); });
+  }
+
+  // ★10コンボを超えたら、ノーツを消した場所（下辺の10px上）に現在のコンボ数を表示する。
+  //   10コンボごとに色が変わり（tier-1〜tier-9）、100を超えると虹色（グラデーションアニメ）になる
+  if (currentSong.combo > 10) {
+    var comboPopup = document.createElement('div');
+    var tier = Math.floor(currentSong.combo / 10); // 11-20:1, 21-30:2, ... 91-100:9
+    if (tier >= 10) {
+      comboPopup.className = 'studio-combo-popup studio-combo-popup-rainbow';
+    } else {
+      comboPopup.className = 'studio-combo-popup studio-combo-popup-tier-' + tier;
+    }
+    comboPopup.textContent = currentSong.combo + 'combos';
+    comboPopup.style.left = cx + 'px';
+    comboPopup.style.top = (bottomY - 10) + 'px';
+    area.appendChild(comboPopup);
+    comboPopup.addEventListener('animationend', function () { comboPopup.remove(); });
   }
 
   note.classList.add('popping');
