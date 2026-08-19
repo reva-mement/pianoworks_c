@@ -1235,11 +1235,34 @@
   // ================================================================
   // 初回起動時の簡易チュートリアル
   // IMPORT → JUKEBOX → STUDIO → Story の順に、対象ボタンをスポットライトで
-  // 示しながら一つずつ説明する。一度見たらlocalStorageに記録し、以降は出さない。
+  // 示しながら一つずつ説明する。一度見たら記録し、以降は出さない。
   // ================================================================
   var TUTORIAL_STORAGE_KEY = 'pw_seen_tutorial';
-  // ★デバッグ用フラグ：trueにすると、既に見た記録(localStorage)を無視して、
-  // 毎回必ず初回チュートリアルが出るようになる。
+
+  // ★モバイル環境によっては、localStorageが保存されない/毎回リセットされることがある
+  //   (プライベートモードや、ブラウザ側の制限など、原因を完全に特定しきれない場合がある)。
+  //   Cookie（有効期限1年）にも同じフラグを保存する二重化を行い、片方が効かない環境でも
+  //   既読状態が残るようにする。判定は「どちらかにフラグがあれば既読」とする。
+  function markTutorialSeen() {
+    try { localStorage.setItem(TUTORIAL_STORAGE_KEY, '1'); } catch (err) { /* 保存できなくても致命的ではないので無視 */ }
+    try {
+      var oneYear = 60 * 60 * 24 * 365;
+      document.cookie = TUTORIAL_STORAGE_KEY + '=1; max-age=' + oneYear + '; path=/; SameSite=Lax';
+    } catch (err) { /* 保存できなくても致命的ではないので無視 */ }
+  }
+  function hasSeenTutorial() {
+    var seen = false;
+    try { seen = !!localStorage.getItem(TUTORIAL_STORAGE_KEY); } catch (err) { /* 読めなくても致命的ではないので無視 */ }
+    if (seen) return true;
+    try {
+      seen = document.cookie.split('; ').some(function (row) {
+        return row.indexOf(TUTORIAL_STORAGE_KEY + '=1') === 0;
+      });
+    } catch (err) { /* 読めなくても致命的ではないので無視 */ }
+    return seen;
+  }
+
+  // ★デバッグ用フラグ：trueにすると、既に見た記録を無視して、毎回必ず初回チュートリアルが出るようになる。
   // 既存の?debugAutoJust=1（studio.jsのデバッグ用パラメータ）が付いている時にも
   // 有効化する（新しく別のパラメータを増やさず、既存のデバッグURLに相乗りする）
   var DEBUG_ALWAYS_SHOW_TUTORIAL = false;
@@ -1283,8 +1306,7 @@
   var tutorialStepIndex = 0;
 
   function startFirstVisitTutorial() {
-    var alreadySeen = false;
-    try { alreadySeen = !!localStorage.getItem(TUTORIAL_STORAGE_KEY); } catch (err) { /* 読めなくても致命的ではないので無視 */ }
+    var alreadySeen = hasSeenTutorial();
     if (!DEBUG_ALWAYS_SHOW_TUTORIAL && alreadySeen) return;
     // ★「準備中」の読み込みウインドウや、「前回『高音質』が選択されています」等の
     //   確認ダイアログがまだ出ている間は、チュートリアルを開始しない。
@@ -1298,7 +1320,29 @@
       return;
     }
     // ★読み込みが終わった瞬間にすぐ出すと慌ただしいので、1秒ほど間を置いてから開始する
-    setTimeout(revealFirstVisitTutorial, 1000);
+    setTimeout(waitForHomeScreenThenRevealTutorial, 1000);
+  }
+
+  // ★読み込みに時間がかかっている間に、ユーザーがSTUDIOやJUKEBOXなど別の画面へ
+  //   進んでしまうことがある。チュートリアルはホーム画面のボタンを指し示す内容なので、
+  //   他の画面の上にいきなり出てしまうと、対象のボタンが見えず壊れて見える。
+  //   ホーム画面（他のオーバーレイ・シーンが一切開いていない状態）に戻るまで待ってから出す
+  function waitForHomeScreenThenRevealTutorial() {
+    var blockingIds = [
+      'studio-list-overlay', 'jukebox-overlay', 'settings-overlay',
+      'skin-overlay', 'story-list-overlay', 'story-read-overlay'
+    ];
+    var somethingElseOpen = blockingIds.some(function (id) {
+      var el = document.getElementById(id);
+      return el && getComputedStyle(el).display !== 'none';
+    });
+    var studioPlayEl = document.getElementById('scene-studio-play');
+    var inStudioPlay = studioPlayEl && !studioPlayEl.classList.contains('hidden');
+    if (somethingElseOpen || inStudioPlay) {
+      setTimeout(waitForHomeScreenThenRevealTutorial, 300);
+      return;
+    }
+    revealFirstVisitTutorial();
   }
 
   function revealFirstVisitTutorial() {
@@ -1308,7 +1352,7 @@
     //   何らかの理由で操作できなくなったり、途中でアプリを閉じたりした場合、
     //   フラグが一度も保存されず、次回以降もずっと表示され続けてしまう。
     //   「表示された時点」で保存しておくことで、そうした場合でも次回以降は出さないようにする
-    try { localStorage.setItem(TUTORIAL_STORAGE_KEY, '1'); } catch (err) { /* 保存できなくても致命的ではないので無視 */ }
+    markTutorialSeen();
     tutorialStepIndex = 0;
     overlay.style.display = 'flex';
     showTutorialStep(0);
@@ -1350,7 +1394,7 @@
       overlay.style.opacity = '0';
       setTimeout(function () { overlay.style.display = 'none'; }, 350);
     }
-    localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
+    markTutorialSeen();
   }
 
   document.getElementById('tutorial-next').addEventListener('click', function () {
